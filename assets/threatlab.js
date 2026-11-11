@@ -139,34 +139,78 @@
   }
   const readDataUrl = (file) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); });
 
-  // SVG is structured XML — extract its text labels as components (no OCR needed)
-  function labelsToComps(labels) {
+  const goodLabel = (s) => s.length >= 2 && s.length <= 48 && /[a-z]{2,}/i.test(s) && !/^(figure|fig|diagram|legend|title|page|v?\d+(\.\d+)*|copyright|©.*)$/i.test(s);
+  // items: strings or {text, cx, cy} → deduped components (geometry preserved)
+  function labelsToComps(items) {
     const seen = new Set(); const comps = [];
-    labels.forEach((raw) => {
-      const s = String(raw).replace(/\s+/g, " ").trim();
-      if (s.length < 2 || s.length > 48) return;
-      if (!/[a-z]{2,}/i.test(s)) return;                 // must contain real letters
-      if (/^(figure|fig|diagram|legend|title|page|v?\d+(\.\d+)*|copyright|©.*)$/i.test(s)) return;
+    items.forEach((it) => {
+      const s = String(typeof it === "string" ? it : it.text || "").replace(/\s+/g, " ").trim();
+      if (!goodLabel(s)) return;
       const key = s.toLowerCase(); if (seen.has(key)) return; seen.add(key);
-      comps.push({ type: KB.inferType(s), name: s });
+      const c = { type: KB.inferType(s), name: s };
+      if (typeof it === "object") { c.cx = it.cx; c.cy = it.cy; }
+      comps.push(c);
     });
     return comps;
   }
-  function parseSvg(text) {
+
+  // SVG connector geometry
+  function svgEndpoints(el) {
+    const tag = el.tagName.toLowerCase();
+    try {
+      if (tag === "line") return [{ x: el.x1.baseVal.value, y: el.y1.baseVal.value }, { x: el.x2.baseVal.value, y: el.y2.baseVal.value }];
+      if (tag === "polyline" || tag === "polygon") { const p = el.points; if (p.numberOfItems < 2) return null; const a = p.getItem(0), b = p.getItem(p.numberOfItems - 1); return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }]; }
+      if (tag === "path") { const L = el.getTotalLength(); if (!L) return null; const a = el.getPointAtLength(0), b = el.getPointAtLength(L); return [{ x: a.x, y: a.y }, { x: b.x, y: b.y }]; }
+    } catch (e) { return null; }
+    return null;
+  }
+  const hasMarker = (el, which) => { const a = el.getAttribute("marker-" + which); const s = el.getAttribute("style") || ""; return !!(a && a !== "none") || new RegExp("marker-" + which + "\\s*:\\s*url").test(s); };
+
+  // Parse an SVG: text labels → components, connector lines/arrows → data flows.
+  // Renders the SVG offscreen to measure real geometry (handles transforms).
+  async function parseSvg(text) {
     const doc = new DOMParser().parseFromString(text, "image/svg+xml");
-    if (doc.querySelector("parsererror")) throw new Error("invalid SVG");
-    const labels = [];
-    doc.querySelectorAll("text, title").forEach((t) => { const s = t.textContent; if (s) labels.push(s); });
-    const comps = labelsToComps(labels);
-    if (!comps.length) throw new Error("no text labels found in the SVG");
-    return { system: "", comps, flows: [] };
+    if (doc.querySelector("parsererror") || doc.documentElement.tagName.toLowerCase() !== "svg") throw new Error("invalid SVG");
+    const holder = document.createElement("div");
+    holder.setAttribute("aria-hidden", "true");
+    holder.style.cssText = "position:absolute;left:-99999px;top:-99999px;opacity:0;pointer-events:none";
+    const clone = document.importNode(doc.documentElement, true);
+    holder.appendChild(clone); document.body.appendChild(holder);
+    try {
+      await new Promise((r) => requestAnimationFrame(() => r()));
+      const screenPt = (el, x, y) => { const m = el.getScreenCTM(); if (!m) return { x, y }; const t = new DOMPoint(x, y).matrixTransform(m); return { x: t.x, y: t.y }; };
+      // nodes: text labels with screen-space centres
+      const nodes = [];
+      clone.querySelectorAll("text").forEach((t) => {
+        const s = (t.textContent || "").replace(/\s+/g, " ").trim(); if (!goodLabel(s)) return;
+        let r; try { r = t.getBoundingClientRect(); } catch (e) { return; }
+        if (!r || !r.width) return;
+        if (nodes.some((n) => n.name.toLowerCase() === s.toLowerCase())) return;
+        nodes.push({ name: s, cx: r.x + r.width / 2, cy: r.y + r.height / 2, d: Math.hypot(r.width, r.height) });
+      });
+      if (!nodes.length) throw new Error("no text labels found in the SVG");
+      const thr = (median(nodes.map((n) => n.d)) || 60) * 1.2 + 14;
+      const nearest = (pt) => { let best = null, bd = Infinity; nodes.forEach((n) => { const d = Math.hypot(n.cx - pt.x, n.cy - pt.y); if (d < bd) { bd = d; best = n; } }); return bd <= thr ? best : null; };
+      const seen = new Set(); const flows = [];
+      clone.querySelectorAll("line, polyline, path").forEach((el) => {
+        const ep = svgEndpoints(el); if (!ep) return;
+        const A = screenPt(el, ep[0].x, ep[0].y), B = screenPt(el, ep[1].x, ep[1].y);
+        if (Math.hypot(A.x - B.x, A.y - B.y) < 22) return;              // too short to be a connector
+        let from = nearest(A), to = nearest(B);
+        if (hasMarker(el, "start") && !hasMarker(el, "end")) { const t = from; from = to; to = t; }
+        if (!from || !to || from === to) return;
+        const k = from.name + "→" + to.name; if (seen.has(k)) return; seen.add(k);
+        flows.push({ from: from.name, to: to.name });
+      });
+      return { system: "", comps: nodes.map((n) => ({ type: KB.inferType(n.name), name: n.name })), flows };
+    } finally { holder.remove(); }
   }
 
   async function parseFile(file) {
     const name = file.name.toLowerCase();
     if (file.type === "image/svg+xml" || /\.svg$/.test(name)) {
       const raw = await file.text();
-      try { return parseSvg(raw); } catch (e) { return { image: await readDataUrl(file), imageName: file.name, raster: false }; }
+      try { return await parseSvg(raw); } catch (e) { return { image: await readDataUrl(file), imageName: file.name, raster: false }; }
     }
     if (/^image\//.test(file.type) || /\.(png|jpe?g|gif|webp)$/.test(name)) {
       return { image: await readDataUrl(file), imageName: file.name, raster: true };
@@ -441,8 +485,17 @@
     words.forEach((w, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(w); });
     return [...groups.values()].map((ws) => {
       ws.sort((a, b) => (a.bbox.y0 - b.bbox.y0) || (a.bbox.x0 - b.bbox.x0));
-      return ws.map((w) => w.text.trim()).join(" ").replace(/\s+/g, " ").trim();
+      const text = ws.map((w) => w.text.trim()).join(" ").replace(/\s+/g, " ").trim();
+      const cx = ws.reduce((s, w) => s + (w.bbox.x0 + w.bbox.x1) / 2, 0) / ws.length;
+      const cy = ws.reduce((s, w) => s + (w.bbox.y0 + w.bbox.y1) / 2, 0) / ws.length;
+      return { text, cx, cy };
     });
+  }
+  // raster fallback: infer flows by reading order (left-to-right within rows)
+  function inferFlows(items) {
+    const sorted = [...items].filter((c) => c.cx != null).sort((a, b) => (Math.abs(a.cy - b.cy) < 28 ? a.cx - b.cx : a.cy - b.cy));
+    const out = []; for (let i = 0; i < sorted.length - 1; i++) out.push({ from: sorted[i].name, to: sorted[i + 1].name });
+    return out;
   }
   async function ocrDetect(url, onProgress) {
     const T = await loadOcr();
@@ -471,8 +524,19 @@
           const comps = await ocrDetect(url, (p) => { msg.textContent = "scanning… " + Math.round(p * 100) + "%"; });
           if (!comps.length) { msg.className = "tm-ocr-msg err"; msg.textContent = "no readable labels found — tag components manually below"; btn.disabled = false; return; }
           applyModel({ comps, flows: [] }, true);
-          msg.className = "tm-ocr-msg ok"; msg.textContent = `detected ${comps.length} component${comps.length === 1 ? "" : "s"} — review types and add data flows`;
+          msg.className = "tm-ocr-msg ok"; msg.textContent = `detected ${comps.length} component${comps.length === 1 ? "" : "s"} — arrows can't be read from a bitmap:`;
           $("tmImportMsg").textContent = `OCR detected ${comps.length} component${comps.length === 1 ? "" : "s"} from the image`; $("tmImportMsg").className = "tm-msg ok";
+          if (comps.filter((c) => c.cx != null).length > 1 && !$("tmInferBtn")) {
+            const inf = document.createElement("button");
+            inf.type = "button"; inf.className = "btn"; inf.id = "tmInferBtn"; inf.textContent = "+ infer flows (reading order)";
+            btn.parentNode.insertBefore(inf, msg);
+            inf.addEventListener("click", () => {
+              const have = new Set(flows.map((f) => f.from + "→" + f.to));
+              const added = inferFlows(comps).filter((f) => !have.has(f.from + "→" + f.to));
+              added.forEach((f) => flows.push(f)); render();
+              inf.disabled = true; inf.textContent = `added ${added.length} inferred flow${added.length === 1 ? "" : "s"} — review`;
+            });
+          }
         } catch (e) {
           msg.className = "tm-ocr-msg err"; msg.textContent = e.message + " — you can still tag components manually"; btn.disabled = false;
         }
