@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Benson's Threat Model Lab</title>
+<meta name="description" content="Benson's Threat Model Lab — a browser-based threat-modelling tool. STRIDE-LM and RAPIDS for IT and OT/ICS (Purdue), mapped to MITRE ATT&CK TTPs with attack payloads, Sigma/YARA detections and MITRE D3FEND / ATT&CK mitigations.">
+<meta name="color-scheme" content="dark">
+<meta property="og:title" content="Benson's Threat Model Lab">
+<meta property="og:description" content="Browser-based threat modelling: STRIDE-LM & RAPIDS for IT and OT/ICS, mapped to MITRE ATT&CK with payloads, Sigma/YARA and D3FEND controls.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 3 27 8v8c0 7-5 11.5-11 14C10 27.5 5 23 5 16V8Z' fill='%230d141b' stroke='%2335e0c1' stroke-width='1.8' stroke-linejoin='round'/%3E%3Cg stroke='%234ea3ff' stroke-width='1.5'%3E%3Cpath d='M16 15 11 11m5 4 5-4m-5 4v5'/%3E%3C/g%3E%3Cg fill='%2335e0c1'%3E%3Ccircle cx='16' cy='15' r='2'/%3E%3Ccircle cx='11' cy='11' r='1.6'/%3E%3Ccircle cx='21' cy='11' r='1.6'/%3E%3Ccircle cx='16' cy='21' r='1.6'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/enhance.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 3v3m6-3v3M9 18v3m6-3v3M3 9h3m-3 6h3m12-6h3m-3 6h3"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></symbol>
+  <symbol id="i-flow" viewBox="0 0 24 24"><rect x="3" y="8" width="6" height="8" rx="1.5"/><rect x="15" y="8" width="6" height="8" rx="1.5"/><path d="M9 12h6m-2.5-2.5L15 12l-2.5 2.5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="4.5"/><path d="m11.2 11.2 8.3 8.3M16 16l2.5-2.5M18 18l2-2"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
+  <symbol id="i-network" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4m0 0-5 5m5-5 5 5"/></symbol>
+  <symbol id="i-plc" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 6V4m4 2V4m4 2V4M8 20v-2m4 2v-2m4 2v-2M8 11h8M8 14h5"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><rect x="8" y="7" width="8" height="12" rx="4"/><path d="M12 7V4M9 6 7 4m8 2 2-2M8 11H4m16 0h-4M8 15H4m16 0h-4M9 19l-2 2m8-2 2 2"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-sword" viewBox="0 0 24 24"><path d="M20 4v4L9 19l-3 1-1-3L16 6l4-2Z"/><path d="m5 17 2 2m8-11 1 1"/></symbol>
+  <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 3 5 5.5V11c0 4.5 3 7.4 7 9.5 4-2.1 7-5 7-9.5V5.5Z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3M12 3v13m-5-8 5-5 5 5"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.3 6.2-1.5 6.2-6.7A5.2 5.2 0 0 0 20 4.8 4.9 4.9 0 0 0 19.9 1S18.7.6 16 2.5a13.4 13.4 0 0 0-7 0C6.3.6 5.1 1 5.1 1A4.9 4.9 0 0 0 5 4.8 5.2 5.2 0 0 0 3.7 8.4c0 5.2 3.2 6.4 6.2 6.7a3.4 3.4 0 0 0-.9 2.6V22"/></symbol>
+</defs></svg>
+
+<header class="appbar">
+  <div class="appbar-in">
+    <a class="logo" href="./" aria-label="Benson's Threat Model Lab">
+      <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M16 3 27 8v8c0 7-5 11.5-11 14C10 27.5 5 23 5 16V8Z" fill="#0d141b" stroke="#35e0c1" stroke-width="1.8" stroke-linejoin="round"/>
+        <g stroke="#4ea3ff" stroke-width="1.5"><path d="M16 15 11 11m5 4 5-4m-5 4v5"/></g>
+        <g fill="#35e0c1"><circle cx="16" cy="15" r="2"/><circle cx="11" cy="11" r="1.6"/><circle cx="21" cy="11" r="1.6"/><circle cx="16" cy="21" r="1.6"/></g>
+      </svg>
+      <span class="logo-txt"><b>Benson's Threat Model Lab</b><span>STRIDE-LM · RAPIDS · OT/ICS · MITRE ATT&amp;CK / D3FEND</span></span>
+    </a>
+    <div class="appbar-actions">
+      <span class="ver">v1.0</span>
+      <button class="icon-btn" id="aboutBtn" type="button" title="About" aria-label="About"><svg aria-hidden="true"><use href="#i-info"></use></svg></button>
+      <a class="icon-btn" id="ghLink" href="https://github.com/bensontan123/threat-model-lab" target="_blank" rel="noopener" title="Source on GitHub" aria-label="Source on GitHub"><svg aria-hidden="true"><use href="#i-github"></use></svg></a>
+    </div>
+  </div>
+</header>
+
+<main id="threatmodel" class="app">
+  <div class="app-wrap">
+    <div class="panelbar">
+      <div class="panel-title"><svg class="ic" aria-hidden="true"><use href="#i-target"></use></svg> Threat model</div>
+      <div class="mode-row" id="tmModeRow" role="group" aria-label="Methodology" style="margin-top:12px">
+        <button class="chip" data-mode="it-stride" type="button" aria-pressed="true">IT · STRIDE-LM</button>
+        <button class="chip" data-mode="it-rapids" type="button" aria-pressed="false">IT · RAPIDS</button>
+        <button class="chip" data-mode="ot-stride" type="button" aria-pressed="false">OT/ICS Purdue · STRIDE-LM</button>
+        <button class="chip" data-mode="ot-rapids" type="button" aria-pressed="false">OT/ICS Purdue · RAPIDS</button>
+      </div>
+      <p class="mode-desc" id="modeDesc"></p>
+    </div>
+
+    <div class="tm-note"><span>▲</span><span><b>Authorised use only.</b> Offensive samples mirror public MITRE ATT&amp;CK, Atomic Red Team, Sigma and YARA references, for security testing and education. OT process-manipulation payloads are bounded to read/recon or isolated test-rig examples; live-process weaponisation is withheld. Everything runs in your browser — nothing you import is uploaded anywhere.</span></div>
+
+    <div class="tm-import">
+      <div class="tm-drop" id="tmDrop">
+        <p>Drop an architecture diagram here, or import a file.</p>
+        <div class="tm-actions">
+          <label class="btn primary" for="tmFile"><svg class="ic" aria-hidden="true" style="vertical-align:-.15em;margin-right:6px"><use href="#i-upload"></use></svg>import diagram</label>
+          <input id="tmFile" type="file" accept=".drawio,.xml,.mmd,.mermaid,.txt,.json,.csv,image/*" multiple hidden>
+          <button class="btn" id="tmSample" type="button">load sample</button>
+          <button class="btn" id="tmClear" type="button">clear</button>
+        </div>
+        <div class="fmts">draw.io (.drawio/.xml) · Mermaid (.mmd) · JSON · CSV · or an image (PNG/JPG/SVG) to tag</div>
+      </div>
+      <div class="tm-msg" id="tmImportMsg"></div>
+      <div class="tm-img" id="tmImage" hidden></div>
+    </div>
+
+    <div class="tm-grid">
+      <div class="tm-panel" id="tmBuilder">
+        <h3>Model builder</h3>
+        <div class="tm-field">
+          <label for="tmSystem">System / application name</label>
+          <input id="tmSystem" class="inp" type="text" placeholder="e.g. Customer Payment Portal">
+        </div>
+        <div class="tm-field">
+          <label for="tmType">Component type</label>
+          <select id="tmType" class="sel"></select>
+        </div>
+        <div class="tm-field">
+          <label for="tmName">Component name</label>
+          <input id="tmName" class="inp" type="text" placeholder="e.g. Payment API">
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" id="tmAdd" type="button">+ add component</button>
+        </div>
+        <ul class="comp-list" id="tmComps"></ul>
+      </div>
+      <div>
+        <div class="tm-toolbar">
+          <div class="ts">threats for <b id="tmSysLabel">your system</b><span id="tmCountWrap"> · <span id="tmCount">0</span> identified</span></div>
+          <button class="btn" id="tmExpand" type="button" style="margin-left:auto">⤢ expand all</button>
+          <button class="btn" id="tmCopy" type="button">⧉ copy as Markdown</button>
+          <button class="btn" id="tmJson" type="button">↓ JSON</button>
+        </div>
+        <div class="tm-threats" id="tmThreats"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="appfoot">
+  <div class="appfoot-in">
+    <span>© <span id="year">2026</span> Benson's Threat Model Lab · runs entirely in your browser · <a id="ghLink2" href="https://github.com/bensontan123/threat-model-lab" target="_blank" rel="noopener">source</a></span>
+    <span class="stack"><span>MITRE ATT&amp;CK</span><span>D3FEND</span><span>Sigma</span><span>YARA</span><span>STRIDE-LM</span><span>Purdue / ICS</span></span>
+  </div>
+</footer>
+
+<dialog id="aboutDlg">
+  <div class="dlg-head"><b>About Benson's Threat Model Lab</b><button class="dlg-close" id="aboutClose" type="button" aria-label="Close">×</button></div>
+  <div class="dlg-body">
+    <p>A browser-based threat-modelling tool. Import an architecture diagram (draw.io, Mermaid, JSON or CSV) or build one by hand, then generate a threat model four ways — enterprise IT or OT/ICS (Purdue), each as STRIDE-LM or RAPIDS scenarios.</p>
+    <p>Every path resolves to MITRE ATT&amp;CK techniques. Each technique expands into an offensive attack/payload sample and the defensive side: Sigma, YARA and network detections plus mapped MITRE D3FEND countermeasures and ATT&amp;CK mitigations.</p>
+    <h4>Methodologies</h4>
+    <ul>
+      <li><b>IT · STRIDE-LM</b> — per component, the seven STRIDE-LM categories (incl. Lateral Movement).</li>
+      <li><b>IT · RAPIDS</b> — Ransomware, Application vulnerability, Phishing, Insider threat, Denial of service, Supply chain.</li>
+      <li><b>OT/ICS Purdue · STRIDE-LM</b> — per Purdue level, mapped to ICS + enterprise techniques.</li>
+      <li><b>OT/ICS Purdue · RAPIDS</b> — the six scenarios adapted to OT/ICS.</li>
+    </ul>
+    <h4>Safety &amp; privacy</h4>
+    <p>For authorised security testing and education. OT process-manipulation payloads are bounded to recon/read or isolated test-rig examples. All parsing is client-side — no diagram or data leaves your browser.</p>
+  </div>
+</dialog>
+
+<script src="assets/ttp-kb.js"></script>
+<script src="assets/threatlab.js"></script>
+<script>
+(function () {
+  const REPO_URL = "https://github.com/bensontan123/threat-model-lab";
+  [document.getElementById("ghLink"), document.getElementById("ghLink2")].forEach((a) => {
+    if (a && /^https?:/.test(REPO_URL)) a.href = REPO_URL; else if (a) a.style.display = "none";
+  });
+  document.getElementById("year").textContent = new Date().getFullYear();
+
+  const DESC = {
+    "it-stride": "Enterprise IT · STRIDE-LM — per component, each STRIDE-LM category is resolved to MITRE ATT&CK techniques with an attack/payload sample, Sigma & YARA detections, and mapped D3FEND / ATT&CK mitigating controls.",
+    "it-rapids": "Enterprise IT · RAPIDS — the six risk scenarios (Ransomware, Application vulnerability, Phishing, Insider threat, Denial of service, Supply chain), each shown as its MITRE ATT&CK chain with payloads and defences.",
+    "ot-stride": "OT/ICS Purdue · STRIDE-LM — per Purdue level (L0–L4/5), STRIDE-LM mapped to ATT&CK-for-ICS and enterprise techniques. Live-process payloads are withheld; detections and mitigations are shown.",
+    "ot-rapids": "OT/ICS Purdue · RAPIDS — the six scenarios adapted to OT/ICS (OT-impacting ransomware, HMI/historian vuln, engineer phishing, insider at the EWS, loss-of-control DoS, vendor/firmware supply chain).",
+  };
+  const desc = document.getElementById("modeDesc");
+  const setDesc = (m) => { desc.textContent = DESC[m] || ""; };
+  setDesc("it-stride");
+  document.querySelectorAll("#tmModeRow .chip").forEach((b) => b.addEventListener("click", () => setDesc(b.dataset.mode)));
+
+  const dlg = document.getElementById("aboutDlg");
+  document.getElementById("aboutBtn").addEventListener("click", () => { if (dlg.showModal) dlg.showModal(); });
+  document.getElementById("aboutClose").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("click", (e) => { const r = dlg.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close(); });
+})();
+</script>
+</body>
+</html>
