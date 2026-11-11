@@ -115,9 +115,17 @@ h1, h2, h3 { text-wrap: balance; line-height: 1.15; margin: 0; }
 .appfoot .stack { display: flex; gap: 10px; flex-wrap: wrap; }
 .appfoot .stack span { border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; color: var(--muted); }
 
-/* ── About dialog ──────────────────────────────────────────────────── */
-dialog#aboutDlg { width: min(640px, 92vw); border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--fg); padding: 0; }
-dialog#aboutDlg::backdrop { background: rgba(5,8,11,.6); backdrop-filter: blur(2px); }
+/* ── Dialogs (About, Settings) ─────────────────────────────────────── */
+dialog.app-dlg { width: min(640px, 92vw); border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--fg); padding: 0; }
+dialog.app-dlg::backdrop { background: rgba(5,8,11,.6); backdrop-filter: blur(2px); }
+.set-field { margin-bottom: 14px; }
+.set-field label { display: block; font-family: var(--mono); font-size: .72rem; color: var(--muted); margin-bottom: 6px; }
+.set-field .sel, .set-field .inp { width: 100%; }
+.set-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.set-msg { font-family: var(--mono); font-size: .74rem; color: var(--muted); }
+.set-msg.ok { color: var(--low); }
+.set-note { font-size: .8rem; color: var(--muted); margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.set-note code { font-family: var(--mono); color: var(--accent-2); }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
 .dlg-head b { font-size: 1.05rem; }
 .dlg-body { padding: 18px 20px 22px; }

@@ -508,16 +508,71 @@
     } finally { try { await worker.terminate(); } catch (e) { /* ignore */ } }
   }
 
-  /* ── image reference + OCR control ─────────────────────────────────── */
+  /* ── AI Vision analysis (bring-your-own Anthropic key) ─────────────── */
+  const AI_KEY = "tml_ai_key", AI_MODEL = "tml_ai_model";
+  const getKey = () => { try { return localStorage.getItem(AI_KEY) || ""; } catch (e) { return ""; } };
+  const setKey = (v) => { try { v ? localStorage.setItem(AI_KEY, v) : localStorage.removeItem(AI_KEY); } catch (e) { /* ignore */ } };
+  const getAiModel = () => { try { return localStorage.getItem(AI_MODEL) || "claude-opus-5-5"; } catch (e) { return "claude-opus-5-5"; } };
+  const setAiModel = (v) => { try { localStorage.setItem(AI_MODEL, v); } catch (e) { /* ignore */ } };
+  function openSettings() {
+    const d = $("settingsDlg"); if (!d) return;
+    $("aiModel").value = getAiModel(); $("aiKey").value = "";
+    $("aiKey").placeholder = getKey() ? "•••••• saved — leave blank to keep" : "sk-ant-...";
+    $("aiSaveMsg").textContent = getKey() ? "a key is saved in this browser" : ""; $("aiSaveMsg").className = "set-msg";
+    if (d.showModal) d.showModal();
+  }
+  async function aiAnalyze(dataUrl, onStatus) {
+    const key = getKey(); if (!key) throw new Error("no API key set");
+    const m = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(dataUrl || "");
+    if (!m) throw new Error("unsupported image data");
+    const media = m[1].toLowerCase() === "image/jpg" ? "image/jpeg" : m[1].toLowerCase();
+    const defs = (isOT() ? KB.OT_ORDER : KB.IT_TYPE_ORDER).map((t) => `${t} = ${(isOT() ? KB.PURDUE[t] : KB.COMPONENTS[t]).label}`).join("; ");
+    const prompt = `You are a threat-modelling assistant. Analyse this architecture / data-flow diagram image and extract its structure.\nReturn ONLY valid minified JSON (no prose, no markdown fences) of exactly this shape:\n{"system":"<short name or empty>","components":[{"type":"<TYPE_KEY>","name":"<label>"}],"flows":[{"from":"<component name>","to":"<component name>"}]}\nRules:\n- "type" MUST be one of these keys (key = meaning): ${defs}.\n- Use component names exactly as written in the diagram.\n- Add a flow for every arrow/connector between components; direction follows the arrowhead (best guess if none). "from"/"to" must match component names.\n- Ignore titles, legends and annotations; only real system components.`;
+    if (onStatus) onStatus("analysing with AI…");
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: getAiModel(), max_tokens: 1500, messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: media, data: m[2] } }, { type: "text", text: prompt }] }] }),
+    });
+    if (!res.ok) {
+      let detail = ""; try { const err = await res.json(); detail = (err && err.error && err.error.message) || ""; } catch (e) { /* ignore */ }
+      const hint = res.status === 401 ? " — check your API key" : res.status === 429 ? " — rate limited, try again" : "";
+      throw new Error("API error " + res.status + hint + (detail ? " (" + detail.slice(0, 120) + ")" : ""));
+    }
+    const j = await res.json();
+    if (j.stop_reason === "refusal") throw new Error("the model declined this request");
+    let text = (j.content || []).filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    let parsed; try { parsed = JSON.parse(text); } catch (e) { const mm = text.match(/\{[\s\S]*\}/); if (!mm) throw new Error("could not parse the AI response"); parsed = JSON.parse(mm[0]); }
+    const typeDefs = isOT() ? KB.PURDUE : KB.COMPONENTS;
+    const comps = (parsed.components || []).filter((c) => c && c.name).map((c) => ({ type: typeDefs[c.type] ? c.type : KB.inferType(String(c.name)), name: String(c.name).slice(0, 60) }));
+    const flows = (parsed.flows || []).filter((f) => f && f.from && f.to).map((f) => ({ from: String(f.from), to: String(f.to) }));
+    if (!comps.length) throw new Error("the AI found no components");
+    return { system: parsed.system ? String(parsed.system).slice(0, 80) : "", comps, flows };
+  }
+
+  /* ── image reference + OCR / AI control ────────────────────────────── */
   function showImage(url, name, raster) {
     const box = $("tmImage");
     box.innerHTML = `<div class="tm-img-top"><span>reference: ${esc(name || "diagram")}</span><button type="button" id="tmImgClear" class="code-copy">remove</button></div>`
-      + (raster ? `<div class="tm-ocr"><button class="btn primary" type="button" id="tmOcrBtn"><svg class="ic" aria-hidden="true" style="vertical-align:-.15em;margin-right:6px"><use href="#i-sparkle"></use></svg>auto-detect components (OCR)</button><span class="tm-ocr-msg" id="tmOcrMsg">reads text labels from the image — review the result and add any data flows</span></div>` : "")
+      + (raster ? `<div class="tm-ocr"><button class="btn primary" type="button" id="tmAiBtn"><svg class="ic" aria-hidden="true" style="vertical-align:-.15em;margin-right:6px"><use href="#i-sparkle"></use></svg>analyse with AI (vision)</button><button class="btn" type="button" id="tmOcrBtn">OCR text only</button><span class="tm-ocr-msg" id="tmOcrMsg">AI reads the whole diagram — components <b>and</b> data flows. OCR reads text labels only.</span></div>` : "")
       + `<img alt="uploaded architecture diagram" src="${url}">`;
     box.hidden = false;
     $("tmImgClear").addEventListener("click", clearImage);
     if (raster) {
-      const btn = $("tmOcrBtn"), msg = $("tmOcrMsg");
+      const btn = $("tmOcrBtn"), msg = $("tmOcrMsg"), ai = $("tmAiBtn");
+      ai.addEventListener("click", async () => {
+        if (!getKey()) { openSettings(); return; }
+        ai.disabled = true; btn.disabled = true; msg.className = "tm-ocr-msg"; msg.textContent = "analysing with AI…";
+        try {
+          const res = await aiAnalyze(url, (s) => { msg.textContent = s; });
+          applyModel(res, false);
+          msg.className = "tm-ocr-msg ok"; msg.textContent = `AI detected ${res.comps.length} component${res.comps.length === 1 ? "" : "s"} and ${res.flows.length} data flow${res.flows.length === 1 ? "" : "s"}`;
+          $("tmImportMsg").textContent = `AI analysed the diagram: ${res.comps.length} components, ${res.flows.length} flows`; $("tmImportMsg").className = "tm-msg ok";
+        } catch (e) {
+          msg.className = "tm-ocr-msg err"; msg.textContent = "AI analysis failed: " + e.message; ai.disabled = false; btn.disabled = false;
+        }
+      });
       btn.addEventListener("click", async () => {
         btn.disabled = true; msg.className = "tm-ocr-msg"; msg.textContent = "loading OCR engine…";
         try {
@@ -600,6 +655,20 @@
       const b = e.target.closest(".code-copy"); if (!b) return;
       const pre = b.closest(".code").querySelector("pre"); if (pre) copyText(pre.textContent, b);
     });
+
+    // AI Vision settings dialog
+    if ($("settingsBtn")) {
+      $("settingsBtn").addEventListener("click", openSettings);
+      $("settingsClose").addEventListener("click", () => $("settingsDlg").close());
+      $("aiSave").addEventListener("click", () => {
+        const k = $("aiKey").value.trim(); if (k) setKey(k); setAiModel($("aiModel").value); $("aiKey").value = "";
+        $("aiSaveMsg").textContent = getKey() ? "saved ✓ — AI analysis is enabled" : "model saved (add a key to enable AI)"; $("aiSaveMsg").className = "set-msg ok";
+      });
+      $("aiClear").addEventListener("click", () => { setKey(""); $("aiKey").value = ""; $("aiSaveMsg").textContent = "key removed"; $("aiSaveMsg").className = "set-msg"; });
+      const sd = $("settingsDlg");
+      sd.addEventListener("click", (e) => { const r = sd.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) sd.close(); });
+    }
+
     render();
   }
 
