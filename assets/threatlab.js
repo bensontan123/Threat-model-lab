@@ -137,11 +137,39 @@
     if (!comps.length) throw new Error("no components in CSV");
     return { system: "", comps, flows };
   }
+  const readDataUrl = (file) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); });
+
+  // SVG is structured XML — extract its text labels as components (no OCR needed)
+  function labelsToComps(labels) {
+    const seen = new Set(); const comps = [];
+    labels.forEach((raw) => {
+      const s = String(raw).replace(/\s+/g, " ").trim();
+      if (s.length < 2 || s.length > 48) return;
+      if (!/[a-z]{2,}/i.test(s)) return;                 // must contain real letters
+      if (/^(figure|fig|diagram|legend|title|page|v?\d+(\.\d+)*|copyright|©.*)$/i.test(s)) return;
+      const key = s.toLowerCase(); if (seen.has(key)) return; seen.add(key);
+      comps.push({ type: KB.inferType(s), name: s });
+    });
+    return comps;
+  }
+  function parseSvg(text) {
+    const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+    if (doc.querySelector("parsererror")) throw new Error("invalid SVG");
+    const labels = [];
+    doc.querySelectorAll("text, title").forEach((t) => { const s = t.textContent; if (s) labels.push(s); });
+    const comps = labelsToComps(labels);
+    if (!comps.length) throw new Error("no text labels found in the SVG");
+    return { system: "", comps, flows: [] };
+  }
+
   async function parseFile(file) {
     const name = file.name.toLowerCase();
-    if (/^image\//.test(file.type) || /\.(png|jpe?g|gif|webp|svg)$/.test(name)) {
-      const url = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); });
-      return { image: url, imageName: file.name };
+    if (file.type === "image/svg+xml" || /\.svg$/.test(name)) {
+      const raw = await file.text();
+      try { return parseSvg(raw); } catch (e) { return { image: await readDataUrl(file), imageName: file.name, raster: false }; }
+    }
+    if (/^image\//.test(file.type) || /\.(png|jpe?g|gif|webp)$/.test(name)) {
+      return { image: await readDataUrl(file), imageName: file.name, raster: true };
     }
     const text = await file.text();
     if (/\.drawio$|\.xml$/.test(name) || /<mxfile|<mxGraphModel/i.test(text)) return await parseDrawio(text);
@@ -369,12 +397,87 @@
     try { navigator.clipboard.writeText(text).then(done).catch(done); } catch (e) { done(); }
   }
 
-  /* ── image reference ───────────────────────────────────────────────── */
-  function showImage(url, name) {
+  /* ── raster image: in-browser OCR auto-detection ───────────────────── */
+  const OCR_SRC = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+  let ocrLoad = null;
+  function loadOcr() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (ocrLoad) return ocrLoad;
+    ocrLoad = new Promise((ok, no) => {
+      const s = document.createElement("script"); s.src = OCR_SRC; s.async = true;
+      s.onload = () => (window.Tesseract ? ok(window.Tesseract) : no(new Error("OCR engine failed to initialise")));
+      s.onerror = () => { ocrLoad = null; no(new Error("could not load the OCR engine (offline or blocked)")); };
+      document.head.appendChild(s);
+    });
+    return ocrLoad;
+  }
+  const median = (a) => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  function collectWords(data) {
+    if (Array.isArray(data.words) && data.words.length) return data.words;
+    const out = [];
+    (data.blocks || []).forEach((bl) => (bl.paragraphs || []).forEach((pa) => (pa.lines || []).forEach((ln) => (ln.words || []).forEach((w) => out.push(w)))));
+    return out;
+  }
+  // group OCR words into component labels by spatial proximity (handles boxes
+  // laid out side-by-side, which line-based OCR would wrongly merge)
+  function clusterWords(words) {
+    words = words.filter((w) => w.text && w.text.trim() && w.bbox && (w.confidence == null || w.confidence > 40));
+    if (!words.length) return [];
+    const H = median(words.map((w) => w.bbox.y1 - w.bbox.y0)) || 16;
+    const parent = words.map((_, i) => i);
+    const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+    const uni = (a, b) => { parent[find(a)] = find(b); };
+    for (let i = 0; i < words.length; i++) for (let j = i + 1; j < words.length; j++) {
+      const A = words[i].bbox, B = words[j].bbox;
+      const vOverlap = Math.min(A.y1, B.y1) - Math.max(A.y0, B.y0);
+      const hOverlap = Math.min(A.x1, B.x1) - Math.max(A.x0, B.x0);
+      const hGap = Math.max(A.x0, B.x0) - Math.min(A.x1, B.x1);
+      const vGap = Math.max(A.y0, B.y0) - Math.min(A.y1, B.y1);
+      const sameRow = vOverlap > 0.3 * H && hGap < 1.4 * H;     // words on one line of a box
+      const stacked = hOverlap > 0 && vGap < 0.8 * H;           // wrapped label (two lines)
+      if (sameRow || stacked) uni(i, j);
+    }
+    const groups = new Map();
+    words.forEach((w, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(w); });
+    return [...groups.values()].map((ws) => {
+      ws.sort((a, b) => (a.bbox.y0 - b.bbox.y0) || (a.bbox.x0 - b.bbox.x0));
+      return ws.map((w) => w.text.trim()).join(" ").replace(/\s+/g, " ").trim();
+    });
+  }
+  async function ocrDetect(url, onProgress) {
+    const T = await loadOcr();
+    const worker = await T.createWorker("eng", 1, { logger: (m) => { if (m.status === "recognizing text" && onProgress) onProgress(m.progress); } });
+    try {
+      const { data } = await worker.recognize(url, {}, { blocks: true });
+      const words = collectWords(data);
+      const labels = words.length ? clusterWords(words) : (data.lines || []).map((l) => l.text);
+      return labelsToComps(labels);
+    } finally { try { await worker.terminate(); } catch (e) { /* ignore */ } }
+  }
+
+  /* ── image reference + OCR control ─────────────────────────────────── */
+  function showImage(url, name, raster) {
     const box = $("tmImage");
-    box.innerHTML = `<div class="tm-img-top"><span>reference: ${esc(name || "diagram")}</span><button type="button" id="tmImgClear" class="code-copy">remove</button></div><img alt="uploaded architecture diagram (reference only)" src="${url}">`;
+    box.innerHTML = `<div class="tm-img-top"><span>reference: ${esc(name || "diagram")}</span><button type="button" id="tmImgClear" class="code-copy">remove</button></div>`
+      + (raster ? `<div class="tm-ocr"><button class="btn primary" type="button" id="tmOcrBtn"><svg class="ic" aria-hidden="true" style="vertical-align:-.15em;margin-right:6px"><use href="#i-sparkle"></use></svg>auto-detect components (OCR)</button><span class="tm-ocr-msg" id="tmOcrMsg">reads text labels from the image — review the result and add any data flows</span></div>` : "")
+      + `<img alt="uploaded architecture diagram" src="${url}">`;
     box.hidden = false;
     $("tmImgClear").addEventListener("click", clearImage);
+    if (raster) {
+      const btn = $("tmOcrBtn"), msg = $("tmOcrMsg");
+      btn.addEventListener("click", async () => {
+        btn.disabled = true; msg.className = "tm-ocr-msg"; msg.textContent = "loading OCR engine…";
+        try {
+          const comps = await ocrDetect(url, (p) => { msg.textContent = "scanning… " + Math.round(p * 100) + "%"; });
+          if (!comps.length) { msg.className = "tm-ocr-msg err"; msg.textContent = "no readable labels found — tag components manually below"; btn.disabled = false; return; }
+          applyModel({ comps, flows: [] }, true);
+          msg.className = "tm-ocr-msg ok"; msg.textContent = `detected ${comps.length} component${comps.length === 1 ? "" : "s"} — review types and add data flows`;
+          $("tmImportMsg").textContent = `OCR detected ${comps.length} component${comps.length === 1 ? "" : "s"} from the image`; $("tmImportMsg").className = "tm-msg ok";
+        } catch (e) {
+          msg.className = "tm-ocr-msg err"; msg.textContent = e.message + " — you can still tag components manually"; btn.disabled = false;
+        }
+      });
+    }
   }
   function clearImage() { const box = $("tmImage"); box.hidden = true; box.innerHTML = ""; }
 
@@ -400,11 +503,11 @@
         let added = 0, imaged = false;
         for (const f of files) {
           const res = await parseFile(f);
-          if (res.image) { showImage(res.image, res.imageName); imaged = true; }
+          if (res.image) { showImage(res.image, res.imageName, res.raster); imaged = true; }
           else { applyModel(res, added > 0); added += (res.comps || []).length; }
         }
         if (added) { $("tmImportMsg").textContent = `imported ${added} component${added === 1 ? "" : "s"}` + (flows.length ? `, ${flows.length} flow${flows.length === 1 ? "" : "s"}` : "") + (framework() === "rapids" ? " (switch to a STRIDE-LM mode to model them)" : ""); $("tmImportMsg").className = "tm-msg ok"; }
-        else if (imaged) { $("tmImportMsg").textContent = "image loaded as reference — tag components below"; $("tmImportMsg").className = "tm-msg ok"; }
+        else if (imaged) { $("tmImportMsg").textContent = "image loaded — use auto-detect (OCR) above, or tag components manually"; $("tmImportMsg").className = "tm-msg ok"; }
       } catch (e) {
         $("tmImportMsg").textContent = "could not import: " + e.message; $("tmImportMsg").className = "tm-msg err";
       }
