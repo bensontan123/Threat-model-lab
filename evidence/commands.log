@@ -1,0 +1,71 @@
+[2026-11-11T14:48:17Z] cd /home/user/threat-model-lab && grep -n "dispatchEvent\|\$(\"tmBuilder\").classList.toggle\|function render()\|tmCount\").textContent" assets/threatlab.js | head
+[2026-11-11T14:50:53Z] node -c assets/app.js && node -c assets/threatlab.js && echo "js ok"
+S=/tmp/claude-0/-home-user/8c2a26dd-ee13-54d7-a8e2-b5d2ebf18182/scratchpad; mkdir -p $S; cat > $S/pro.js <<'EOF'
+const { chromium } = require('playwright');
+const http = require('http'), fs = require('fs'), path = require('path');
+const root = '/home/user/threat-model-lab';
+const mt = { '.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json' };
+const srv = http.createServer((q, r) => { let f = path.join(root, decodeURIComponent(q.url.split('?')[0])); if (q.url==='/') f=path.join(root,'index.html'); if (!f.startsWith(root)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){r.writeHead(404);return r.end();} r.writeHead(200,{'content-type':mt[path.extname(f)]||'text/plain'}); r.end(fs.readFileSync(f)); });
+(async () => {
+  await new Promise(ok => srv.listen(8811, ok));
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 1320, height: 1100 } });
+  const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{if(m.type()==='error')errs.push('c:'+m.text());});
+  await p.route(/fonts\.g/, r => r.abort());
+  await p.goto('http://localhost:8811/'); await p.waitForTimeout(1200);
+  // IT sample -> canvas + kpis
+  await p.click('#tmSample'); await p.waitForTimeout(400);
+  const o = {};
+  o.kpis = await p.locator('#tmStats .kpi').count();
+  o.kpiLabels = await p.locator('#tmStats .kpi-l').allTextContents();
+  o.kpiNums = await p.locator('#tmStats .kpi-n').allTextContents();
+  o.canvasShown = !(await p.locator('#tmCanvasCard').isHidden());
+  o.nodes = await p.locator('#tmCanvas .cnode').count();
+  o.edges = await p.locator('#tmCanvas .cedge').count();
+  o.paletteBtns = await p.locator('#tmPalette .pal').count();
+  o.status = await p.textContent('#status');
+  // palette click sets select + name focus
+  await p.locator('#tmPalette .pal[data-type="datastore"]').click();
+  o.selAfterPalette = await p.inputValue('#tmType');
+  await p.screenshot({ path: '/tmp/claude-0/-home-user/8c2a26dd-ee13-54d7-a8e2-b5d2ebf18182/scratchpad/pro-it.png', fullPage:false });
+  // OT canvas (Purdue layers)
+  await p.click('[data-mode="ot-stride"]'); await p.waitForTimeout(200); await p.click('#tmSample'); await p.waitForTimeout(400);
+  o.otNodes = await p.locator('#tmCanvas .cnode').count();
+  o.otBands = await p.locator('#tmCanvas .cband-lbl').count();
+  o.otEdges = await p.locator('#tmCanvas .cedge').count();
+  await p.evaluate(()=>document.getElementById('tmCanvasCard').scrollIntoView());
+  await p.screenshot({ path: '/tmp/claude-0/-home-user/8c2a26dd-ee13-54d7-a8e2-b5d2ebf18182/scratchpad/pro-ot.png', fullPage:false });
+  // rapids: scenarios kpi
+  await p.click('[data-mode="it-rapids"]'); await p.waitForTimeout(300);
+  o.rapidsKpis = await p.locator('#tmStats .kpi-l').allTextContents();
+  o.overflow = await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
+  console.log(JSON.stringify(o,null,1));
+  console.log('errors', errs);
+  await b.close(); srv.close();
+})();
+EOF
+node $S/pro.js
+[2026-11-11T14:51:57Z] grep -n "SAMPLE_IT = \|SAMPLE_OT = " assets/ttp-kb.js
+[2026-11-11T14:52:22Z] node -e "global.window={};require('./assets/ttp-kb.js');const t=global.window.TLAB;console.log('IT flows',t.SAMPLE_IT.flows.length,'comps',t.SAMPLE_IT.comps.length,'| OT flows',t.SAMPLE_OT.flows.length)"
+node /tmp/claude-0/-home-user/8c2a26dd-ee13-54d7-a8e2-b5d2ebf18182/scratchpad/pro.js 2>&1 | grep -v ERR_FAILED
+[2026-11-11T14:53:12Z] node -c assets/app.js && node /tmp/claude-0/-home-user/8c2a26dd-ee13-54d7-a8e2-b5d2ebf18182/scratchpad/pro.js 2>&1 | grep -E '"nodes"|"edges"|"otNodes"|"otBands"|overflow|errors' 
+[2026-11-11T14:53:23Z] S=/tmp/claude-0/-home-user/8c2a26dd-ee13-54d7-a8e2-b5d2ebf18182/scratchpad; cat > $S/canvasshot.js <<'EOF'
+const { chromium } = require('playwright');
+const http = require('http'), fs = require('fs'), path = require('path');
+const root = '/home/user/threat-model-lab';
+const mt = { '.html':'text/html','.js':'text/javascript','.css':'text/css' };
+const srv = http.createServer((q, r) => { let f = path.join(root, decodeURIComponent(q.url.split('?')[0])); if (q.url==='/') f=path.join(root,'index.html'); if (!f.startsWith(root)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){r.writeHead(404);return r.end();} r.writeHead(200,{'content-type':mt[path.extname(f)]||'text/plain'}); r.end(fs.readFileSync(f)); });
+(async () => {
+  await new Promise(ok => srv.listen(8812, ok));
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 1320, height: 900 } });
+  await p.route(/fonts\.g/, r => r.abort());
+  await p.goto('http://localhost:8812/'); await p.waitForTimeout(1000);
+  await p.click('#tmSample'); await p.waitForTimeout(400);
+  await p.locator('#tmCanvasCard').scrollIntoViewIfNeeded();
+  await p.locator('#tmCanvasCard').screenshot({ path: '/tmp/claude-0/-home-user/8c2a26dd-ee13-54d7-a8e2-b5d2ebf18182/scratchpad/canvas-it.png' });
+  console.log('shot');
+  await b.close(); srv.close();
+})();
+EOF
+node $S/canvasshot.js

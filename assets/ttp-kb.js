@@ -949,25 +949,40 @@ level: critical` }],
     ]},
   };
   const OT_ORDER = ["level4", "level35", "level3", "level2", "level1", "level0"];
-  const SAMPLE_OT = { system: "Water Treatment SCADA", comps: [
-    { type: "level4", name: "Corporate Active Directory" },
-    { type: "level35", name: "IDMZ Jump Host" },
-    { type: "level3", name: "Process Historian" },
-    { type: "level2", name: "Treatment SCADA / HMI" },
-    { type: "level1", name: "Dosing PLC" },
-    { type: "level0", name: "Chlorine Dosing Pump" },
-  ]};
+  const SAMPLE_OT = { system: "Water Treatment SCADA",
+    comps: [
+      { type: "level4", name: "Corporate Active Directory" },
+      { type: "level35", name: "IDMZ Jump Host" },
+      { type: "level3", name: "Process Historian" },
+      { type: "level2", name: "Treatment SCADA / HMI" },
+      { type: "level1", name: "Dosing PLC" },
+      { type: "level0", name: "Chlorine Dosing Pump" },
+    ],
+    flows: [
+      { from: "Corporate Active Directory", to: "IDMZ Jump Host" },
+      { from: "IDMZ Jump Host", to: "Process Historian" },
+      { from: "Process Historian", to: "Treatment SCADA / HMI" },
+      { from: "Treatment SCADA / HMI", to: "Dosing PLC" },
+      { from: "Dosing PLC", to: "Chlorine Dosing Pump" },
+    ]};
 
   /* ── Samples for the IT engine ─────────────────────────────────────── */
-  const SAMPLE_IT = { system: "Customer Payment Portal", comps: [
-    { type: "external", name: "Cardholder (browser)" },
-    { type: "network", name: "WAF / API Gateway" },
-    { type: "process", name: "Payment API" },
-    { type: "dataflow", name: "API → Payment Gateway" },
-    { type: "datastore", name: "Transactions DB" },
-    { type: "identity", name: "Entra ID (SSO)" },
-    { type: "host", name: "API Container Host" },
-  ]};
+  const SAMPLE_IT = { system: "Customer Payment Portal",
+    comps: [
+      { type: "external", name: "Cardholder (browser)" },
+      { type: "network", name: "WAF / API Gateway" },
+      { type: "process", name: "Payment API" },
+      { type: "datastore", name: "Transactions DB" },
+      { type: "identity", name: "Entra ID (SSO)" },
+      { type: "host", name: "API Container Host" },
+    ],
+    flows: [
+      { from: "Cardholder (browser)", to: "WAF / API Gateway" },
+      { from: "WAF / API Gateway", to: "Payment API" },
+      { from: "Payment API", to: "Transactions DB" },
+      { from: "Payment API", to: "Entra ID (SSO)" },
+      { from: "Payment API", to: "API Container Host" },
+    ]};
 
   /* ── Diagram type inference (keyword → component type) ──────────────── */
   const TYPE_HINTS = [

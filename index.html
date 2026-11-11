@@ -49,6 +49,7 @@
       <span class="logo-txt"><b>Benson's Threat Model Lab</b><span>STRIDE-LM · RAPIDS · OT/ICS · MITRE ATT&amp;CK / D3FEND</span></span>
     </a>
     <div class="appbar-actions">
+      <span class="status" id="status"><i></i><span>Ready</span></span>
       <span class="ver">v1.0</span>
       <button class="icon-btn" id="aboutBtn" type="button" title="About" aria-label="About"><svg aria-hidden="true"><use href="#i-info"></use></svg></button>
       <a class="icon-btn" id="ghLink" href="https://github.com/bensontan123/threat-model-lab" target="_blank" rel="noopener" title="Source on GitHub" aria-label="Source on GitHub"><svg aria-hidden="true"><use href="#i-github"></use></svg></a>
@@ -67,6 +68,7 @@
         <button class="chip" data-mode="ot-rapids" type="button" aria-pressed="false">OT/ICS Purdue · RAPIDS</button>
       </div>
       <p class="mode-desc" id="modeDesc"></p>
+      <div class="statbar" id="tmStats"></div>
     </div>
 
     <div class="tm-note"><span>▲</span><span><b>Authorised use only.</b> Offensive samples mirror public MITRE ATT&amp;CK, Atomic Red Team, Sigma and YARA references, for security testing and education. OT process-manipulation payloads are bounded to read/recon or isolated test-rig examples; live-process weaponisation is withheld. Everything runs in your browser — nothing you import is uploaded anywhere.</span></div>
@@ -86,6 +88,11 @@
       <div class="tm-img" id="tmImage" hidden></div>
     </div>
 
+    <div class="tm-canvas-card" id="tmCanvasCard" hidden>
+      <div class="tm-canvas-head"><svg class="ic" aria-hidden="true"><use href="#i-flow"></use></svg> Model canvas <span class="tm-canvas-meta" id="tmCanvasMeta"></span></div>
+      <div class="tm-canvas" id="tmCanvas"></div>
+    </div>
+
     <div class="tm-grid">
       <div class="tm-panel" id="tmBuilder">
         <h3>Model builder</h3>
@@ -96,6 +103,7 @@
         <div class="tm-field">
           <label for="tmType">Component type</label>
           <select id="tmType" class="sel"></select>
+          <div class="palette" id="tmPalette" aria-label="Quick component types"></div>
         </div>
         <div class="tm-field">
           <label for="tmName">Component name</label>
@@ -144,6 +152,7 @@
 </dialog>
 
 <script src="assets/ttp-kb.js"></script>
+<script src="assets/app.js"></script>
 <script src="assets/threatlab.js"></script>
 <script>
 (function () {

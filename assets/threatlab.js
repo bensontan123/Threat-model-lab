@@ -289,6 +289,13 @@
     if (ex) { ex.textContent = "⤢ expand all"; ex.style.display = total ? "" : "none"; }
     // builder only matters for stride; dim it in rapids
     $("tmBuilder").classList.toggle("muted", framework() === "rapids");
+    // notify the app shell (canvas / metrics / palette) of the current model
+    document.dispatchEvent(new CustomEvent("tml:model", { detail: {
+      mode, domain: domain(), framework: framework(), system,
+      comps: comps.map((c) => ({ type: c.type, name: c.name })),
+      flows: flows.map((f) => ({ from: f.from, to: f.to })),
+      total,
+    } }));
   }
   function populateTypes() {
     const sel = $("tmType"); sel.innerHTML = "";
