@@ -52,7 +52,7 @@
     </a>
     <div class="appbar-actions">
       <span class="status" id="status"><i></i><span>Ready</span></span>
-      <span class="ver">v1.1</span>
+      <span class="ver">v1.2</span>
       <button class="icon-btn" id="settingsBtn" type="button" title="AI vision settings" aria-label="AI vision settings"><svg aria-hidden="true"><use href="#i-gear"></use></svg></button>
       <button class="icon-btn" id="aboutBtn" type="button" title="About" aria-label="About"><svg aria-hidden="true"><use href="#i-info"></use></svg></button>
       <a class="icon-btn" id="ghLink" href="https://github.com/bensontan123/threat-model-lab" target="_blank" rel="noopener" title="Source on GitHub" aria-label="Source on GitHub"><svg aria-hidden="true"><use href="#i-github"></use></svg></a>
@@ -140,17 +140,32 @@
 <dialog id="settingsDlg" class="app-dlg">
   <div class="dlg-head"><b>AI Vision analysis</b><button class="dlg-close" id="settingsClose" type="button" aria-label="Close">×</button></div>
   <div class="dlg-body">
-    <p>Optional. Lets the Lab analyse <b>image</b> diagrams (PNG/JPG) with a vision model — detecting components <b>and</b> data flows the way a person reads the picture, instead of plain OCR. It calls the Anthropic API with <b>your own key</b>.</p>
-    <div class="set-field"><label for="aiModel">Model</label>
-      <select id="aiModel" class="sel">
-        <option value="claude-opus-5-5">Claude Opus 5.5 — most capable</option>
-        <option value="claude-sonnet-5-5">Claude Sonnet 5.5 — cheaper, good for this</option>
-        <option value="claude-haiku-5-5">Claude Haiku 5.5 — cheapest</option>
-      </select></div>
-    <div class="set-field"><label for="aiKey">Anthropic API key</label>
-      <input id="aiKey" class="inp" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false"></div>
-    <div class="set-actions"><button class="btn primary" id="aiSave" type="button">save</button><button class="btn" id="aiClear" type="button">remove key</button><span class="set-msg" id="aiSaveMsg"></span></div>
-    <p class="set-note">⚠ Your key is stored <b>only in this browser</b> (localStorage) and sent directly from your browser to <code>api.anthropic.com</code> — it is never committed to this site, and the Lab has no server. Use a key with limited scope/billing, and don't enter one on a shared computer. Get a key at console.anthropic.com.</p>
+    <p>Analyse <b>image</b> diagrams (PNG/JPG) with a vision model — detecting components <b>and</b> data flows the way a person reads the picture, instead of plain OCR.</p>
+
+    <div id="hostedBlock">
+      <h4>Hosted analysis</h4>
+      <p class="set-hosted on" id="hostedOn" hidden>This site has a hosted AI backend — just enter the passphrase. No API key needed.</p>
+      <p class="set-hosted off" id="hostedOff" hidden>No hosted backend is configured for this site yet. Use your own key below, or deploy the Worker in <code>worker/</code>.</p>
+      <div class="set-field"><label for="aiPass">Passphrase</label>
+        <input id="aiPass" class="inp" type="password" autocomplete="off" spellcheck="false" placeholder="passphrase"></div>
+      <div class="set-actions"><button class="btn primary" id="passSave" type="button">save passphrase</button><span class="set-msg" id="passMsg"></span></div>
+    </div>
+
+    <details class="set-byo">
+      <summary>Advanced — use your own Anthropic key instead</summary>
+      <div class="set-field"><label for="aiModel">Model</label>
+        <select id="aiModel" class="sel">
+          <option value="claude-opus-5-5">Claude Opus 5.5 — most capable</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 — cheaper, good for this</option>
+          <option value="claude-haiku-5-5">Claude Haiku 5.5 — cheapest</option>
+        </select></div>
+      <div class="set-field"><label for="aiKey">Anthropic API key</label>
+        <input id="aiKey" class="inp" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false"></div>
+      <div class="set-actions"><button class="btn primary" id="aiSave" type="button">save</button><button class="btn" id="aiClear" type="button">remove key</button><span class="set-msg" id="aiSaveMsg"></span></div>
+      <p class="set-note">Your key is stored <b>only in this browser</b> (localStorage) and sent directly to <code>api.anthropic.com</code> — never committed to this site. A saved key takes priority over the hosted backend. Get a key at console.anthropic.com.</p>
+    </details>
+
+    <p class="set-note">⚠ Don't enter a key or passphrase on a shared/public computer. Both are stored only in your browser.</p>
   </div>
 </dialog>
 
@@ -171,6 +186,7 @@
   </div>
 </dialog>
 
+<script src="assets/config.js"></script>
 <script src="assets/ttp-kb.js"></script>
 <script src="assets/app.js"></script>
 <script src="assets/threatlab.js"></script>

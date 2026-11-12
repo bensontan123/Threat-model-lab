@@ -126,6 +126,16 @@ dialog.app-dlg::backdrop { background: rgba(5,8,11,.6); backdrop-filter: blur(2p
 .set-msg.ok { color: var(--low); }
 .set-note { font-size: .8rem; color: var(--muted); margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
 .set-note code { font-family: var(--mono); color: var(--accent-2); }
+.dlg-body h4 { margin: 4px 0 10px; font-size: .95rem; }
+.set-hosted { font-size: .85rem; margin: 0 0 12px; }
+.set-hosted.on { color: var(--low); } .set-hosted.off { color: var(--muted); }
+.set-hosted code { font-family: var(--mono); color: var(--accent-2); }
+.set-byo { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.set-byo > summary { cursor: pointer; font-family: var(--mono); font-size: .8rem; color: var(--accent-2); list-style: none; }
+.set-byo > summary::-webkit-details-marker { display: none; }
+.set-byo > summary::before { content: "▸ "; }
+.set-byo[open] > summary::before { content: "▾ "; }
+.set-byo[open] > summary { margin-bottom: 14px; }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
 .dlg-head b { font-size: 1.05rem; }
 .dlg-body { padding: 18px 20px 22px; }

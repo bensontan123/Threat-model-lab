@@ -1,0 +1,15 @@
+name = "tml-vision"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+# Comma-separated list of site origins allowed to call this backend (CORS).
+# Set to your GitHub Pages origin (add http://localhost ports for local testing).
+[vars]
+ALLOWED_ORIGIN = "https://bensontan123.github.io"
+# Optional. Defaults to claude-opus-5-5 if unset. For a public endpoint you
+# pay for, a cheaper model is recommended, e.g. claude-haiku-5-5.
+ANTHROPIC_MODEL = "claude-sonnet-5-5"
+
+# Secrets are NOT stored here — set them once with:
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put TML_PASSPHRASE

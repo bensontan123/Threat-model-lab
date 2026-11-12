@@ -509,19 +509,28 @@
   }
 
   /* ── AI Vision analysis (bring-your-own Anthropic key) ─────────────── */
-  const AI_KEY = "tml_ai_key", AI_MODEL = "tml_ai_model";
+  const AI_KEY = "tml_ai_key", AI_MODEL = "tml_ai_model", AI_PASS = "tml_ai_pass";
   const getKey = () => { try { return localStorage.getItem(AI_KEY) || ""; } catch (e) { return ""; } };
   const setKey = (v) => { try { v ? localStorage.setItem(AI_KEY, v) : localStorage.removeItem(AI_KEY); } catch (e) { /* ignore */ } };
   const getAiModel = () => { try { return localStorage.getItem(AI_MODEL) || "claude-opus-5-5"; } catch (e) { return "claude-opus-5-5"; } };
   const setAiModel = (v) => { try { localStorage.setItem(AI_MODEL, v); } catch (e) { /* ignore */ } };
+  const getPass = () => { try { return localStorage.getItem(AI_PASS) || ""; } catch (e) { return ""; } };
+  const setPass = (v) => { try { v ? localStorage.setItem(AI_PASS, v) : localStorage.removeItem(AI_PASS); } catch (e) { /* ignore */ } };
+  const aiEndpoint = () => (window.TML_CONFIG && window.TML_CONFIG.aiEndpoint) || "";
+  const aiReady = () => !!getKey() || (!!aiEndpoint() && !!getPass());
   function openSettings() {
     const d = $("settingsDlg"); if (!d) return;
+    const hosted = !!aiEndpoint();
+    if ($("hostedOn")) $("hostedOn").hidden = !hosted;
+    if ($("hostedOff")) $("hostedOff").hidden = hosted;
+    if ($("aiPass")) { $("aiPass").value = ""; $("aiPass").placeholder = getPass() ? "•••••• saved — leave blank to keep" : "passphrase"; $("aiPass").disabled = !hosted; }
+    if ($("passMsg")) { $("passMsg").textContent = hosted && getPass() ? "a passphrase is saved" : ""; $("passMsg").className = "set-msg"; }
     $("aiModel").value = getAiModel(); $("aiKey").value = "";
     $("aiKey").placeholder = getKey() ? "•••••• saved — leave blank to keep" : "sk-ant-...";
     $("aiSaveMsg").textContent = getKey() ? "a key is saved in this browser" : ""; $("aiSaveMsg").className = "set-msg";
     if (d.showModal) d.showModal();
   }
-  async function aiAnalyze(dataUrl, onStatus) {
+  async function aiDirect(dataUrl, onStatus) {
     const key = getKey(); if (!key) throw new Error("no API key set");
     const m = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(dataUrl || "");
     if (!m) throw new Error("unsupported image data");
@@ -550,6 +559,29 @@
     if (!comps.length) throw new Error("the AI found no components");
     return { system: parsed.system ? String(parsed.system).slice(0, 80) : "", comps, flows };
   }
+  // Hosted backend (Cloudflare Worker) — key stays server-side, passphrase-gated.
+  async function aiBackend(dataUrl, onStatus) {
+    const endpoint = aiEndpoint(); if (!endpoint) throw new Error("no hosted backend configured");
+    const m = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(dataUrl || ""); if (!m) throw new Error("unsupported image data");
+    if (onStatus) onStatus("analysing with AI…");
+    let res;
+    try {
+      res = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ image_base64: m[2], media_type: m[1], domain: domain(), passphrase: getPass() }) });
+    } catch (e) { throw new Error("could not reach the AI backend"); }
+    if (!res.ok) {
+      let detail = ""; try { detail = (await res.json()).error || ""; } catch (e) { /* ignore */ }
+      if (res.status === 401) throw new Error("wrong or missing passphrase");
+      throw new Error("backend error " + res.status + (detail ? " (" + detail.slice(0, 120) + ")" : ""));
+    }
+    const j = await res.json();
+    const typeDefs = isOT() ? KB.PURDUE : KB.COMPONENTS;
+    const comps = (j.components || []).filter((c) => c && c.name).map((c) => ({ type: typeDefs[c.type] ? c.type : KB.inferType(String(c.name)), name: String(c.name).slice(0, 60) }));
+    const flows = (j.flows || []).filter((f) => f && f.from && f.to).map((f) => ({ from: String(f.from), to: String(f.to) }));
+    if (!comps.length) throw new Error("the AI found no components");
+    return { system: j.system ? String(j.system).slice(0, 80) : "", comps, flows };
+  }
+  // Prefer the user's own key; otherwise use the hosted backend.
+  const aiAnalyze = (dataUrl, onStatus) => (getKey() ? aiDirect(dataUrl, onStatus) : aiBackend(dataUrl, onStatus));
 
   /* ── image reference + OCR / AI control ────────────────────────────── */
   function showImage(url, name, raster) {
@@ -562,7 +594,7 @@
     if (raster) {
       const btn = $("tmOcrBtn"), msg = $("tmOcrMsg"), ai = $("tmAiBtn");
       ai.addEventListener("click", async () => {
-        if (!getKey()) { openSettings(); return; }
+        if (!aiReady()) { openSettings(); return; }
         ai.disabled = true; btn.disabled = true; msg.className = "tm-ocr-msg"; msg.textContent = "analysing with AI…";
         try {
           const res = await aiAnalyze(url, (s) => { msg.textContent = s; });
@@ -665,6 +697,10 @@
         $("aiSaveMsg").textContent = getKey() ? "saved ✓ — AI analysis is enabled" : "model saved (add a key to enable AI)"; $("aiSaveMsg").className = "set-msg ok";
       });
       $("aiClear").addEventListener("click", () => { setKey(""); $("aiKey").value = ""; $("aiSaveMsg").textContent = "key removed"; $("aiSaveMsg").className = "set-msg"; });
+      if ($("passSave")) $("passSave").addEventListener("click", () => {
+        const pw = $("aiPass").value; if (pw) setPass(pw); $("aiPass").value = "";
+        $("passMsg").textContent = getPass() ? (aiEndpoint() ? "saved ✓ — AI analysis is enabled" : "saved (no backend configured yet)") : "enter a passphrase"; $("passMsg").className = "set-msg ok";
+      });
       const sd = $("settingsDlg");
       sd.addEventListener("click", (e) => { const r = sd.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) sd.close(); });
     }
