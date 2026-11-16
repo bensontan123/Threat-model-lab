@@ -252,7 +252,7 @@
       <summary>
         <span class="ttp-id">${esc(id)}</span>
         <span class="ttp-name">${esc(tech.name)}</span>
-        <span class="ttp-tactic">${esc(tech.tactic)}</span>
+        <span class="ttp-tactic"><svg class="ic" aria-hidden="true"><use href="#i-${KB.TACTIC_ICON[tech.tactic] || "target"}"></use></svg> ${esc(tech.tactic)}</span>
         <span class="ttp-tags">${tags.join("")}</span>
         <svg class="ic ttp-caret" aria-hidden="true"><use href="#i-chevron"></use></svg>
       </summary>

@@ -1148,9 +1148,19 @@ level: critical` }],
     return d.kind === "attack" ? ("https://attack.mitre.org/mitigations/" + key + "/") : ("https://d3fend.mitre.org/technique/d3f:" + d.path + "/");
   }
 
+  // ATT&CK tactic -> sprite icon id (for cards and charts)
+  const TACTIC_ICON = {
+    "Reconnaissance": "search", "Resource Development": "wrench", "Initial Access": "door",
+    "Execution": "terminal", "Persistence": "anchor", "Privilege Escalation": "arrow-up",
+    "Defense Evasion": "mask", "Credential Access": "key", "Discovery": "compass",
+    "Lateral Movement": "shuffle", "Collection": "inbox", "Command and Control": "broadcast",
+    "Exfiltration": "upload", "Impact": "burst",
+  };
+  const mitreUrl = (id) => { const p = String(id).split("."); return "https://attack.mitre.org/techniques/" + p[0] + (p[1] ? "/" + p[1] : "") + "/"; };
+
   return {
     STRIDE_LM, TACTIC_ORDER, TECH, COMPONENTS, IT_TYPE_ORDER,
     PURDUE, OT_STRIDE, OT_ORDER, SAMPLE_OT, SAMPLE_IT, RAPIDS_IT, RAPIDS_OT,
-    DEFEND, defendUrl, inferType,
+    DEFEND, defendUrl, inferType, TACTIC_ICON, mitreUrl,
   };
 })();

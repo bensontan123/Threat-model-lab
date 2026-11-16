@@ -27,6 +27,7 @@
     }
     return set;
   }
+  const KPI_ICON = { scn: "bug", comp: "grid", flow: "flow", ttp: "target", tac: "layers", ctl: "shield-check" };
   function renderStats(d) {
     const el = $("tmStats"); if (!el) return;
     const ttps = techniqueSet(d);
@@ -37,7 +38,55 @@
     tiles.push(["ttp", "ATT&CK techniques", ttps.size]);
     tiles.push(["tac", "tactics", tactics.size]);
     tiles.push(["ctl", "defensive controls", countControls(ttps)]);
-    el.innerHTML = tiles.map(([c, l, n]) => `<div class="kpi ${c}"><div class="kpi-n">${n}</div><div class="kpi-l">${l}</div></div>`).join("");
+    el.innerHTML = tiles.map(([c, l, n]) => `<div class="kpi ${c}"><svg class="ic kpi-ic" aria-hidden="true"><use href="#i-${KPI_ICON[c]}"></use></svg><div class="kpi-n">${n}</div><div class="kpi-l">${l}</div></div>`).join("");
+  }
+
+  /* ── threat analytics charts ───────────────────────────────────────── */
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+  const tacIcon = (t) => KB.TACTIC_ICON[t] || "target";
+  function barChart(title, iconId, rows, accent) {
+    const max = Math.max(1, ...rows.map((r) => r.n));
+    return `<div class="chart">
+      <div class="chart-h"><svg class="ic" aria-hidden="true"><use href="#i-${iconId}"></use></svg> ${esc(title)}</div>
+      <div class="bars">${rows.map((r) => `<div class="bar-row">
+        <span class="bar-lbl">${r.icon ? `<svg class="ic" aria-hidden="true"><use href="#i-${r.icon}"></use></svg>` : ""}<span>${esc(r.label)}</span></span>
+        <span class="bar-track"><span class="bar-fill ${accent || ""}" style="width:${Math.round(r.n / max * 100)}%"></span></span>
+        <span class="bar-n">${r.n}</span></div>`).join("")}</div></div>`;
+  }
+  function renderCharts(d) {
+    const card = $("tmChartsCard"), host = $("tmCharts"); if (!host) return;
+    const ttps = [...techniqueSet(d)];
+    if (!ttps.length) { card.hidden = true; host.innerHTML = ""; return; }
+    card.hidden = false;
+
+    // tactic counts (kill-chain order)
+    const tcount = {}; ttps.forEach((id) => { const t = (KB.TECH[id] || {}).tactic; if (t) tcount[t] = (tcount[t] || 0) + 1; });
+    const tacticRows = KB.TACTIC_ORDER.filter((t) => tcount[t]).map((t) => ({ label: t, n: tcount[t], icon: tacIcon(t) }));
+
+    // secondary chart: STRIDE-LM distribution (stride) or scenario sizes (rapids)
+    let second;
+    if (d.framework === "rapids") {
+      const list = d.domain === "ot" ? KB.RAPIDS_OT : KB.RAPIDS_IT;
+      second = barChart("RAPIDS scenarios", "bug", list.map((s) => ({ label: s.name.replace(/\s*\(.*\)/, ""), n: s.ttps.length, icon: s.icon })), "a2");
+    } else {
+      const letters = {}; const order = ["S", "T", "R", "I", "D", "E", "L"];
+      d.comps.forEach((c) => { const sm = d.domain === "ot" ? KB.OT_STRIDE[c.type] : (KB.COMPONENTS[c.type] || {}).stride; if (sm) Object.keys(sm).forEach((L) => { (sm[L].ttps || []).forEach((id) => { (letters[L] = letters[L] || new Set()).add(id); }); }); });
+      const rows = order.filter((L) => letters[L]).map((L) => ({ label: `${L} · ${KB.STRIDE_LM[L].name}`, n: letters[L].size }));
+      second = barChart("STRIDE-LM coverage", "shield-check", rows, "a2");
+    }
+
+    // ATT&CK coverage matrix: tactic columns with technique chips
+    const byTac = {}; ttps.forEach((id) => { const t = (KB.TECH[id] || {}).tactic; if (t) (byTac[t] = byTac[t] || []).push(id); });
+    const cols = KB.TACTIC_ORDER.filter((t) => byTac[t]);
+    const matrix = `<div class="chart chart-wide">
+      <div class="chart-h"><svg class="ic" aria-hidden="true"><use href="#i-grid"></use></svg> ATT&amp;CK coverage matrix <span class="chart-sub">${ttps.length} techniques · ${cols.length} tactics</span></div>
+      <div class="matrix">${cols.map((t) => `<div class="mcol">
+        <div class="mcol-h"><svg class="ic" aria-hidden="true"><use href="#i-${tacIcon(t)}"></use></svg><span>${esc(t)}</span><b>${byTac[t].length}</b></div>
+        ${[...new Set(byTac[t])].map((id) => `<a class="mcell" href="${KB.mitreUrl(id)}" target="_blank" rel="noopener" title="${esc((KB.TECH[id] || {}).name || id)}">${esc(id)}</a>`).join("")}
+      </div>`).join("")}</div></div>`;
+
+    $("tmChartsMeta").textContent = `${ttps.length} techniques across ${tacticRows.length} tactics`;
+    host.innerHTML = `<div class="chart-grid">${barChart("ATT&CK tactics", "layers", tacticRows)}${second}</div>${matrix}`;
   }
   function countControls(ttps) {
     const set = new Set();
@@ -134,6 +183,6 @@
 
   document.addEventListener("tml:model", (e) => {
     const d = e.detail;
-    renderStats(d); renderPalette(d); renderCanvas(d); setStatus(d);
+    renderStats(d); renderPalette(d); renderCanvas(d); renderCharts(d); setStatus(d);
   });
 })();
