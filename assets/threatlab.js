@@ -671,6 +671,8 @@
     dz.addEventListener("drop", (e) => handleFiles(e.dataTransfer.files));
 
     $("tmCopy").addEventListener("click", (e) => copyText(toMarkdown(), e.currentTarget));
+    // expose for the PDF report builder (app.js)
+    window.tmlMarkdown = toMarkdown; window.tmlJson = toJson;
     $("tmJson").addEventListener("click", () => {
       const blob = new Blob([toJson()], { type: "application/json" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob);

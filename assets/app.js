@@ -12,6 +12,7 @@
   const svg = (t, a) => { const e = document.createElementNS(SVGNS, t); if (a) for (const k in a) e.setAttribute(k, a[k]); return e; };
   const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
+  let lastModel = null;
   const compIcon = (domain, type) => (domain === "ot" ? "plc" : ((KB.COMPONENTS[type] || {}).icon || "cpu"));
   const compLabel = (domain, type) => (domain === "ot" ? (KB.PURDUE[type] || {}).label : (KB.COMPONENTS[type] || {}).label) || type;
   const typeOrder = (domain) => (domain === "ot" ? KB.OT_ORDER : KB.IT_TYPE_ORDER);
@@ -125,25 +126,114 @@
     h2cLoad = new Promise((ok, no) => { const s = document.createElement("script"); s.src = H2C_SRC; s.onload = () => (window.html2canvas ? ok(window.html2canvas) : no(new Error("load failed"))); s.onerror = () => { h2cLoad = null; no(new Error("could not load the image exporter")); }; document.head.appendChild(s); });
     return h2cLoad;
   }
+  async function snapshot(el) {
+    if (!el || el.hidden) return null;
+    const H2C = await loadH2C();
+    const sprite = document.querySelector("svg[aria-hidden]");
+    return H2C(el, {
+      backgroundColor: "#0d141b", scale: 2, useCORS: true, logging: false,
+      onclone: (doc) => { const t = doc.getElementById(el.id); if (t) { if (sprite) t.insertAdjacentHTML("afterbegin", sprite.outerHTML); t.querySelectorAll(".chip-btn").forEach((b) => b.remove()); } },
+    });
+  }
   async function exportPng(el, filename, btn) {
     if (!el || el.hidden) return;
     const orig = btn ? btn.innerHTML : null; if (btn) { btn.disabled = true; btn.textContent = "rendering…"; }
     try {
-      const H2C = await loadH2C();
-      const sprite = document.querySelector("svg[aria-hidden]");
-      const canvas = await H2C(el, {
-        backgroundColor: "#0d141b", scale: 2, useCORS: true, logging: false,
-        onclone: (doc) => {
-          const t = doc.getElementById(el.id);
-          if (t) { if (sprite) t.insertAdjacentHTML("afterbegin", sprite.outerHTML); t.querySelectorAll(".chip-btn").forEach((b) => b.remove()); }
-        },
-      });
+      const canvas = await snapshot(el);
       await new Promise((res) => canvas.toBlob((blob) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); res(); }, "image/png"));
     } catch (e) { if (btn) { btn.textContent = "export failed"; setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 1800); return; } }
     if (btn) { btn.innerHTML = orig; btn.disabled = false; }
   }
+
+  /* ── PDF report (jsPDF + rasterised canvas/analytics) ──────────────── */
+  const JSPDF_SRC = "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js";
+  let pdfLoad = null;
+  function loadJsPdf() {
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+    if (pdfLoad) return pdfLoad;
+    pdfLoad = new Promise((ok, no) => { const s = document.createElement("script"); s.src = JSPDF_SRC; s.onload = () => ((window.jspdf && window.jspdf.jsPDF) ? ok(window.jspdf.jsPDF) : no(new Error("load failed"))); s.onerror = () => { pdfLoad = null; no(new Error("could not load the PDF library")); }; document.head.appendChild(s); });
+    return pdfLoad;
+  }
+  const MODE_LABEL = { "it-stride": "Enterprise IT · STRIDE-LM", "it-rapids": "Enterprise IT · RAPIDS", "ot-stride": "OT/ICS Purdue · STRIDE-LM", "ot-rapids": "OT/ICS Purdue · RAPIDS" };
+  async function buildPdf(btn) {
+    const d = lastModel; if (!d) return;
+    const orig = btn ? btn.innerHTML : null; if (btn) { btn.disabled = true; btn.textContent = "building…"; }
+    try {
+      const JsPDF = await loadJsPdf();
+      const doc = new JsPDF({ unit: "pt", format: "a4" });
+      const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+      const M = 42, CW = W - 2 * M; let y = M;
+      const addPageIf = (need) => { if (y + need > H - M) { doc.addPage(); y = M; } };
+
+      const ttps = [...techniqueSet(d)];
+      const tactics = new Set(ttps.map((id) => (KB.TECH[id] || {}).tactic).filter(Boolean));
+      const sys = (d.system || "Untitled system");
+
+      // ── header band
+      doc.setFillColor(13, 20, 27); doc.rect(0, 0, W, 96, "F");
+      doc.setTextColor(53, 224, 193); doc.setFont("helvetica", "bold"); doc.setFontSize(20);
+      doc.text("Threat Model Report", M, 46);
+      doc.setTextColor(215, 224, 232); doc.setFontSize(13); doc.text(sys, M, 68);
+      doc.setTextColor(140, 155, 170); doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+      doc.text(`${MODE_LABEL[d.mode] || d.mode}  ·  generated ${new Date().toISOString().slice(0, 10)}`, M, 84);
+      y = 120;
+
+      // ── KPI summary
+      const kpis = d.framework === "rapids"
+        ? [["Scenarios", (d.domain === "ot" ? KB.RAPIDS_OT : KB.RAPIDS_IT).length], ["ATT&CK techniques", ttps.length], ["Tactics", tactics.size], ["Defensive controls", countControls(new Set(ttps))]]
+        : [["Components", d.comps.length], ["Data flows", d.flows.length], ["ATT&CK techniques", ttps.length], ["Tactics", tactics.size], ["Defensive controls", countControls(new Set(ttps))]];
+      const kw = CW / kpis.length;
+      kpis.forEach((k, i) => {
+        const x = M + i * kw;
+        doc.setDrawColor(222, 228, 234); doc.roundedRect(x + 3, y, kw - 6, 46, 5, 5, "S");
+        doc.setTextColor(20, 30, 40); doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.text(String(k[1]), x + 12, y + 22);
+        doc.setTextColor(110, 130, 145); doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.text(String(k[0]).toUpperCase(), x + 12, y + 37);
+      });
+      y += 68;
+
+      // ── rasterised sections (model canvas, analytics)
+      for (const [el, label] of [[$("tmCanvas"), "Model canvas"], [$("tmCharts"), "Threat analytics"]]) {
+        const cv = await snapshot(el); if (!cv || !cv.width) continue;
+        addPageIf(26); doc.setTextColor(20, 30, 40); doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text(label, M, y); y += 12;
+        let dw = CW, dh = cv.height * (CW / cv.width);
+        const maxH = H - 2 * M - 30; if (dh > maxH) { dw = cv.width * (maxH / cv.height); dh = maxH; }
+        addPageIf(dh + 12); doc.addImage(cv.toDataURL("image/jpeg", 0.82), "JPEG", M, y, dw, dh); y += dh + 20;
+      }
+
+      // ── written findings (rendered from the Markdown export)
+      addPageIf(30); doc.setTextColor(20, 30, 40); doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.text("Findings", M, y); y += 18;
+      const md = (window.tmlMarkdown ? window.tmlMarkdown() : "");
+      let code = false;
+      md.split("\n").forEach((raw) => {
+        if (/^#\s/.test(raw)) return;                       // skip the H1
+        if (raw.trim().startsWith("```")) { code = !code; return; }
+        if (code) {
+          doc.setFont("courier", "normal"); doc.setFontSize(7.6); doc.setTextColor(70, 95, 110);
+          doc.splitTextToSize((raw || " ").replace(/\t/g, "  "), CW - 10).forEach((w) => { addPageIf(10); doc.text(w, M + 10, y); y += 9.2; });
+          return;
+        }
+        const h2 = /^##\s+(.*)/.exec(raw);
+        if (h2) { y += 8; addPageIf(20); doc.setFont("helvetica", "bold"); doc.setFontSize(11.5); doc.setTextColor(16, 125, 100); doc.splitTextToSize(h2[1], CW).forEach((ln) => { addPageIf(15); doc.text(ln, M, y); y += 14; }); y += 2; return; }
+        const t = raw.replace(/\*\*/g, "");
+        if (!t.trim()) { y += 4; return; }
+        const indent = Math.min((raw.match(/^\s*/)[0].length) / 2 * 8, 40);
+        const bullet = /^\s*-\s/.test(raw);
+        doc.setFont("helvetica", bullet ? "normal" : "normal"); doc.setFontSize(9.3); doc.setTextColor(45, 55, 65);
+        doc.splitTextToSize(t.replace(/^\s*-\s/, "• ").replace(/^\s+/, ""), CW - indent).forEach((ln) => { addPageIf(13); doc.text(ln, M + indent, y); y += 11.5; });
+      });
+
+      // ── footer page numbers
+      const pages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(150, 160, 170); doc.text(`Benson's Threat Model Lab · ${i} / ${pages}`, M, H - 20); }
+
+      doc.save((sys || "threat-model").replace(/[^a-z0-9]+/gi, "-").toLowerCase() + "-report.pdf");
+    } catch (e) { if (btn) { btn.textContent = "PDF failed"; setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 2000); return; } }
+    if (btn) { btn.innerHTML = orig; btn.disabled = false; }
+  }
+
   { const c = $("tmChartsPng"); if (c) c.addEventListener("click", () => exportPng($("tmChartsCard"), "threat-analytics.png", c)); }
   { const v = $("tmCanvasPng"); if (v) v.addEventListener("click", () => exportPng($("tmCanvasCard"), "model-canvas.png", v)); }
+  { const pd = $("tmPdf"); if (pd) pd.addEventListener("click", () => buildPdf(pd)); }
   function countControls(ttps) {
     const set = new Set();
     ttps.forEach((id) => { const t = KB.TECH[id]; if (t) { if (t.sigma) set.add(id + ":sigma"); if (t.yara) set.add(id + ":yara"); (t.detect || []).forEach((_, i) => set.add(id + ":d" + i)); (t.defend || []).forEach((k) => set.add(k)); } });
@@ -238,7 +328,8 @@
   }
 
   document.addEventListener("tml:model", (e) => {
-    const d = e.detail;
+    const d = e.detail; lastModel = d;
     renderStats(d); renderPalette(d); renderCanvas(d); renderCharts(d); setStatus(d);
+    const pd = $("tmPdf"); if (pd) pd.disabled = !d.total;
   });
 })();
