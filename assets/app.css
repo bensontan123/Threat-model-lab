@@ -194,6 +194,39 @@ dialog.app-dlg::backdrop { background: rgba(5,8,11,.6); backdrop-filter: blur(2p
 .mcol-h b { margin-left: auto; font-family: var(--mono); font-size: .68rem; color: var(--accent); }
 .mcell { font-family: var(--mono); font-size: .68rem; color: var(--accent-2); background: rgba(78,163,255,.08); border: 1px solid rgba(78,163,255,.22); border-radius: 5px; padding: 3px 6px; text-align: center; white-space: nowrap; }
 .mcell:hover { border-color: var(--accent-2); background: rgba(78,163,255,.16); text-decoration: none; }
+/* coverage colouring: offensive payload vs payload withheld */
+.mcell.off { color: #ffc9ce; background: rgba(255,92,108,.1); border-color: rgba(255,92,108,.28); }
+.mcell.off:hover { border-color: var(--crit); background: rgba(255,92,108,.18); }
+.mcell.def { color: #ffe0a8; background: rgba(255,180,84,.1); border-color: rgba(255,180,84,.26); }
+.mcell.def:hover { border-color: var(--warn); background: rgba(255,180,84,.18); }
+.mx-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+.mx-legend .lg::before { content: "●"; margin-right: 5px; }
+.mx-legend .lg.off { color: var(--crit); } .mx-legend .lg.def { color: var(--warn); }
+.mx-legend .lg-hint { margin-left: auto; color: var(--muted); }
+
+/* header PNG buttons */
+.chip-btn { font-family: var(--mono); font-size: .68rem; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; }
+.chip-btn .ic { width: 13px; height: 13px; }
+.chip-btn:hover { border-color: var(--accent); color: var(--accent); }
+.chip-btn:disabled { opacity: .6; cursor: default; }
+
+/* clickable chart elements (tactic filter) */
+.bar-row.clickable { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
+.bar-row.clickable:hover { background: var(--panel-2); }
+.bar-row.clickable.active { background: rgba(53,224,193,.1); }
+.bar-row.clickable.active .bar-lbl, .bar-row.clickable.active .bar-n { color: var(--accent); }
+.mcol-h.clickable { cursor: pointer; }
+.mcol-h.clickable:hover span { color: var(--fg); }
+.mcol-h.clickable.active { background: rgba(53,224,193,.08); margin: -8px -8px 3px; padding: 8px 8px 7px; border-radius: 7px 7px 0 0; }
+.mcol-h.clickable.active span, .mcol-h.clickable.active b { color: var(--accent); }
+
+/* tactic filter banner above the cards */
+.tm-filter { display: flex; align-items: center; gap: 9px; background: rgba(53,224,193,.08); border: 1px solid rgba(53,224,193,.3); border-radius: 9px; padding: 9px 12px; margin-bottom: 14px; font-family: var(--mono); font-size: .8rem; color: var(--fg); }
+.tm-filter[hidden] { display: none; }
+.tm-filter .ic { width: 15px; height: 15px; color: var(--accent); }
+.tm-filter b { color: var(--accent); }
+.tm-filter button { margin-left: auto; font-family: var(--mono); font-size: .72rem; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; cursor: pointer; }
+.tm-filter button:hover { border-color: var(--crit); color: var(--crit); }
 
 /* ── Component palette ─────────────────────────────────────────────── */
 .palette { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }

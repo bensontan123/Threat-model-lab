@@ -13,8 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="assets/app.css">
-<link rel="stylesheet" href="assets/enhance.css">
+<link rel="stylesheet" href="assets/app.css?v=1.3">
+<link rel="stylesheet" href="assets/enhance.css?v=1.3">
 </head>
 <body>
 
@@ -67,7 +67,7 @@
     </a>
     <div class="appbar-actions">
       <span class="status" id="status"><i></i><span>Ready</span></span>
-      <span class="ver">v1.2</span>
+      <span class="ver">v1.3</span>
       <button class="icon-btn" id="settingsBtn" type="button" title="AI vision settings" aria-label="AI vision settings"><svg aria-hidden="true"><use href="#i-gear"></use></svg></button>
       <button class="icon-btn" id="aboutBtn" type="button" title="About" aria-label="About"><svg aria-hidden="true"><use href="#i-info"></use></svg></button>
       <a class="icon-btn" id="ghLink" href="https://github.com/bensontan123/threat-model-lab" target="_blank" rel="noopener" title="Source on GitHub" aria-label="Source on GitHub"><svg aria-hidden="true"><use href="#i-github"></use></svg></a>
@@ -107,12 +107,12 @@
     </div>
 
     <div class="tm-canvas-card" id="tmCanvasCard" hidden>
-      <div class="tm-canvas-head"><svg class="ic" aria-hidden="true"><use href="#i-flow"></use></svg> Model canvas <span class="tm-canvas-meta" id="tmCanvasMeta"></span></div>
+      <div class="tm-canvas-head"><svg class="ic" aria-hidden="true"><use href="#i-flow"></use></svg> Model canvas <span class="tm-canvas-meta" id="tmCanvasMeta"></span><button class="chip-btn" id="tmCanvasPng" type="button" title="download as PNG"><svg class="ic" aria-hidden="true"><use href="#i-upload"></use></svg> PNG</button></div>
       <div class="tm-canvas" id="tmCanvas"></div>
     </div>
 
     <div class="tm-canvas-card" id="tmChartsCard" hidden>
-      <div class="tm-canvas-head"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg> Threat analytics <span class="tm-canvas-meta" id="tmChartsMeta"></span></div>
+      <div class="tm-canvas-head"><svg class="ic" aria-hidden="true"><use href="#i-chart"></use></svg> Threat analytics <span class="tm-canvas-meta" id="tmChartsMeta"></span><button class="chip-btn" id="tmChartsPng" type="button" title="download as PNG"><svg class="ic" aria-hidden="true"><use href="#i-upload"></use></svg> PNG</button></div>
       <div class="tm-charts" id="tmCharts"></div>
     </div>
 
@@ -144,6 +144,7 @@
           <button class="btn" id="tmCopy" type="button">⧉ copy as Markdown</button>
           <button class="btn" id="tmJson" type="button">↓ JSON</button>
         </div>
+        <div class="tm-filter" id="tmFilter" hidden></div>
         <div class="tm-threats" id="tmThreats"></div>
       </div>
     </div>
@@ -206,10 +207,10 @@
   </div>
 </dialog>
 
-<script src="assets/config.js"></script>
-<script src="assets/ttp-kb.js"></script>
-<script src="assets/app.js"></script>
-<script src="assets/threatlab.js"></script>
+<script src="assets/config.js?v=1.3"></script>
+<script src="assets/ttp-kb.js?v=1.3"></script>
+<script src="assets/app.js?v=1.3"></script>
+<script src="assets/threatlab.js?v=1.3"></script>
 <script>
 (function () {
   const REPO_URL = "https://github.com/bensontan123/threat-model-lab";

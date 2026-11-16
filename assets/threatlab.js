@@ -248,7 +248,7 @@
     if (a.code) tags.push('<span class="tp off">payload</span>');
     detects.forEach((d) => { const n = /sigma/i.test(d.label) ? "Sigma" : /yara/i.test(d.label) ? "YARA" : d.label.split(" ")[0]; tags.push(`<span class="tp def">${esc(n)}</span>`); });
     if (controls.some((c) => c.d.kind === "d3")) tags.push('<span class="tp ctrl">D3FEND</span>');
-    return `<details class="ttp">
+    return `<details class="ttp" data-tactic="${esc(tech.tactic)}">
       <summary>
         <span class="ttp-id">${esc(id)}</span>
         <span class="ttp-name">${esc(tech.name)}</span>
