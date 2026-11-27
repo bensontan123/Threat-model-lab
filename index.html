@@ -13,8 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="assets/app.css?v=1.6">
-<link rel="stylesheet" href="assets/enhance.css?v=1.6">
+<link rel="stylesheet" href="assets/app.css?v=2.0">
+<link rel="stylesheet" href="assets/enhance.css?v=2.0">
 </head>
 <body>
 
@@ -55,19 +55,31 @@
   <symbol id="i-burst" viewBox="0 0 24 24"><path d="m12 2 2.2 5.2L19 5l-2.2 4.8L22 12l-5.2 2.2L19 19l-4.8-2.2L12 22l-2.2-5.2L5 19l2.2-4.8L2 12l5.2-2.2L5 5l4.8 2.2z"/></symbol>
 </defs></svg>
 
+<div class="shell">
+<aside class="rail" aria-label="Sections">
+  <a class="rail-logo" href="./" aria-label="Benson's Threat Model Lab" title="Benson's Threat Model Lab">
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M16 3 27 8v8c0 7-5 11.5-11 14C10 27.5 5 23 5 16V8Z" fill="#0d141b" stroke="#2fe6a6" stroke-width="1.8" stroke-linejoin="round"/>
+      <g stroke="#36a9ff" stroke-width="1.5"><path d="M16 15 11 11m5 4 5-4m-5 4v5"/></g>
+      <g fill="#2fe6a6"><circle cx="16" cy="15" r="2"/><circle cx="11" cy="11" r="1.6"/><circle cx="21" cy="11" r="1.6"/><circle cx="16" cy="21" r="1.6"/></g>
+    </svg>
+  </a>
+  <nav class="rail-nav">
+    <a class="rail-i active" href="#threatmodel" title="Dashboard" aria-label="Dashboard"><svg aria-hidden="true"><use href="#i-grid"></use></svg></a>
+    <a class="rail-i" href="#tmCanvasCard" title="Model canvas" aria-label="Model canvas"><svg aria-hidden="true"><use href="#i-flow"></use></svg></a>
+    <a class="rail-i" href="#tmChartsCard" title="Threat analytics" aria-label="Threat analytics"><svg aria-hidden="true"><use href="#i-chart"></use></svg></a>
+    <a class="rail-i" href="#tmThreats" title="Findings" aria-label="Findings"><svg aria-hidden="true"><use href="#i-layers"></use></svg></a>
+  </nav>
+</aside>
+<div class="shell-main">
 <header class="appbar">
   <div class="appbar-in">
-    <a class="logo" href="./" aria-label="Benson's Threat Model Lab">
-      <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M16 3 27 8v8c0 7-5 11.5-11 14C10 27.5 5 23 5 16V8Z" fill="#0d141b" stroke="#35e0c1" stroke-width="1.8" stroke-linejoin="round"/>
-        <g stroke="#4ea3ff" stroke-width="1.5"><path d="M16 15 11 11m5 4 5-4m-5 4v5"/></g>
-        <g fill="#35e0c1"><circle cx="16" cy="15" r="2"/><circle cx="11" cy="11" r="1.6"/><circle cx="21" cy="11" r="1.6"/><circle cx="16" cy="21" r="1.6"/></g>
-      </svg>
-      <span class="logo-txt"><b>Benson's Threat Model Lab</b><span>STRIDE-LM · RAPIDS · OT/ICS · MITRE ATT&amp;CK / D3FEND</span></span>
-    </a>
+    <div class="cmd-title">
+      <div class="cmd-titlerow"><b>Threat Model Lab</b><span class="ver">v2.0</span></div>
+      <span class="cmd-sub">STRIDE-LM · RAPIDS · OT/ICS · MITRE ATT&amp;CK / D3FEND</span>
+    </div>
     <div class="appbar-actions">
       <span class="status" id="status"><i></i><span>Ready</span></span>
-      <span class="ver">v1.6</span>
       <button class="icon-btn" id="settingsBtn" type="button" title="AI vision settings" aria-label="AI vision settings"><svg aria-hidden="true"><use href="#i-gear"></use></svg></button>
       <button class="icon-btn" id="aboutBtn" type="button" title="About" aria-label="About"><svg aria-hidden="true"><use href="#i-info"></use></svg></button>
       <a class="icon-btn" id="ghLink" href="https://github.com/bensontan123/threat-model-lab" target="_blank" rel="noopener" title="Source on GitHub" aria-label="Source on GitHub"><svg aria-hidden="true"><use href="#i-github"></use></svg></a>
@@ -158,6 +170,8 @@
     <span class="stack"><span>MITRE ATT&amp;CK</span><span>D3FEND</span><span>Sigma</span><span>YARA</span><span>STRIDE-LM</span><span>Purdue / ICS</span></span>
   </div>
 </footer>
+</div><!-- /.shell-main -->
+</div><!-- /.shell -->
 
 <dialog id="settingsDlg" class="app-dlg">
   <div class="dlg-head"><b>AI Vision analysis</b><button class="dlg-close" id="settingsClose" type="button" aria-label="Close">×</button></div>
@@ -208,10 +222,10 @@
   </div>
 </dialog>
 
-<script src="assets/config.js?v=1.6"></script>
-<script src="assets/ttp-kb.js?v=1.6"></script>
-<script src="assets/app.js?v=1.6"></script>
-<script src="assets/threatlab.js?v=1.6"></script>
+<script src="assets/config.js?v=2.0"></script>
+<script src="assets/ttp-kb.js?v=2.0"></script>
+<script src="assets/app.js?v=2.0"></script>
+<script src="assets/threatlab.js?v=2.0"></script>
 <script>
 (function () {
   const REPO_URL = "https://github.com/bensontan123/threat-model-lab";
